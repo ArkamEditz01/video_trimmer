@@ -5,16 +5,15 @@ workflows:
     instance_type: mac_mini_m2
     working_directory: example
     environment:
-      flutter: stable
+      flutter: 3.22.2
     scripts:
-      - name: Get Flutter packages
+      - name: Get packages
         script: flutter packages get
       - name: Build APK
-        script: flutter build apk --release
+        script: flutter build apk --release --android-skip-build-dependency-validation
     artifacts:
       - example/build/app/outputs/flutter-apk/*.apk
     publishing:
       email:
         recipients:
           - arkamking005@gmail.com
-
