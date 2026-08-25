@@ -5,7 +5,7 @@ workflows:
     instance_type: mac_mini_m2
     working_directory: example
     environment:
-      flutter: 3.22.2
+      flutter: stable
     scripts:
       - name: Get packages
         script: flutter packages get
