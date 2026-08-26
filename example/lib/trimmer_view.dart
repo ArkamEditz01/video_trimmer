@@ -21,12 +21,12 @@ class _TrimmerViewState extends State<TrimmerView> {
   bool _isExporting = false;
   bool _isGeneratingCaptions = false;
   
-  // AI Settings
+  // AI Feature States
   String _selectedFilter = 'Normal';
-  String _bgCutoutMode = 'Off'; // Off, Chroma, AI Cutout
-  String _aiVelocityMode = 'Off'; // Off, 0.25x Smooth, 0.5x Smooth, Fast 2x
-  bool _aiAudioDenoise = false;
-  bool _aiHdrEnhance = false; // AI Smart HDR / Color Grading
+  String _bgCutoutMode = 'Off'; 
+  String _aiVelocityMode = 'Off'; 
+  String _aiVoiceMode = 'Off'; // Off, Studio Denoise, Vocal Isolate
+  bool _aiHdrEnhance = false;
   double _speed = 1.0;
   String _autoCaptionText = "";
   late stt.SpeechToText _speech;
@@ -53,7 +53,6 @@ class _TrimmerViewState extends State<TrimmerView> {
     ]),
   };
 
-  // AI HDR Matrix Overlay for Preview
   final ColorFilter _hdrFilterMatrix = const ColorFilter.matrix([
     1.35, 0, 0, 0, 8,
     0, 1.35, 0, 0, 8,
@@ -134,15 +133,22 @@ class _TrimmerViewState extends State<TrimmerView> {
     });
   }
 
-  void _toggleAudioDenoise() {
+  void _toggleVoiceClean() {
     setState(() {
-      _aiAudioDenoise = !_aiAudioDenoise;
+      if (_aiVoiceMode == 'Off') {
+        _aiVoiceMode = 'Denoise';
+      } else if (_aiVoiceMode == 'Denoise') {
+        _aiVoiceMode = 'Voice Isolate';
+      } else {
+        _aiVoiceMode = 'Off';
+      }
     });
+
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        backgroundColor: _aiAudioDenoise ? const Color(0xFF00E5FF) : Colors.grey,
+        backgroundColor: _aiVoiceMode != 'Off' ? const Color(0xFF00E5FF) : Colors.grey,
         content: Text(
-          _aiAudioDenoise ? "✨ AI Voice Isolator / Noise Clean ON" : "AI Audio Denoise OFF",
+          "🎙️ AI Audio: $_aiVoiceMode",
           style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
         ),
       ),
@@ -180,12 +186,10 @@ class _TrimmerViewState extends State<TrimmerView> {
     // Video Filters
     String videoFilter = "setpts=${setpts}*PTS";
 
-    // AI 4K HDR & Clarity Enhancement
     if (_aiHdrEnhance) {
       videoFilter += ",unsharp=5:5:1.2:5:5:0.0,eq=contrast=1.18:brightness=0.03:saturation=1.3";
     }
 
-    // AI Velocity Frame Interpolation
     if (_aiVelocityMode == '0.25x Ultra' || _aiVelocityMode == '0.5x Smooth') {
       videoFilter += ",minterpolate='mi_mode=mci:mc_mode=aobmc:vsbmc=1:fps=60'";
     }
@@ -202,10 +206,12 @@ class _TrimmerViewState extends State<TrimmerView> {
       videoFilter += ",curves=vintage";
     }
 
-    // AI Audio Filter
+    // AI Audio Filters (FFmpeg FFT Denoise + Vocal Pass Isolator)
     String audioFilter = "atempo=$atempo";
-    if (_aiAudioDenoise) {
-      audioFilter += ",afftdn=nf=-25,highpass=f=200,lowpass=f=3000";
+    if (_aiVoiceMode == 'Denoise') {
+      audioFilter += ",afftdn=nf=-25,anlmdn=s=3";
+    } else if (_aiVoiceMode == 'Voice Isolate') {
+      audioFilter += ",afftdn=nf=-35,highpass=f=220,lowpass=f=3400,volume=1.6";
     }
 
     String command =
@@ -340,6 +346,13 @@ class _TrimmerViewState extends State<TrimmerView> {
                           children: [
                             const SizedBox(width: 8),
                             _buildToolOption(
+                              "AI Voice Isolator",
+                              _aiVoiceMode,
+                              _toggleVoiceClean,
+                              isAi: true,
+                            ),
+                            const SizedBox(width: 8),
+                            _buildToolOption(
                               "AI Enhancer",
                               _aiHdrEnhance ? "4K HDR" : "OFF",
                               _toggleHdrEnhancer,
@@ -350,13 +363,6 @@ class _TrimmerViewState extends State<TrimmerView> {
                               "AI Velocity",
                               _aiVelocityMode,
                               _toggleVelocity,
-                              isAi: true,
-                            ),
-                            const SizedBox(width: 8),
-                            _buildToolOption(
-                              "AI Audio Clean",
-                              _aiAudioDenoise ? "ON" : "OFF",
-                              _toggleAudioDenoise,
                               isAi: true,
                             ),
                             const SizedBox(width: 8),
