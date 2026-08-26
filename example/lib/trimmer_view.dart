@@ -27,10 +27,10 @@ class _TrimmerViewState extends State<TrimmerView> {
   String _customText = "";
   Offset _textPosition = const Offset(0, 0);
 
-  // FX & AI States
-  String _selectedGlitch = 'Off';
+  // FX, Audio & AI States
+  String _selectedMusicTitle = "";
   String? _bgMusicPath;
-  String _selectedRatio = 'Original';
+  String _selectedResolution = "1080P";
   String _selectedFilter = 'Normal';
   String _bgCutoutMode = 'Off'; 
   String _aiVelocityMode = 'Off'; 
@@ -64,28 +64,6 @@ class _TrimmerViewState extends State<TrimmerView> {
     ]),
   };
 
-  final Map<String, ColorFilter?> _glitchMatrices = {
-    'Off': null,
-    'RGB Split': const ColorFilter.matrix([
-      1.5, 0, 0, 0, 30,
-      0, 0.8, 0, 0, -20,
-      0, 0, 1.6, 0, 40,
-      0, 0, 0, 1, 0,
-    ]),
-    'VHS Glitch': const ColorFilter.matrix([
-      0.9, 0.2, 0, 0, 10,
-      0, 1.2, 0.1, 0, 5,
-      0.2, 0, 1.1, 0, -15,
-      0, 0, 0, 1, 0,
-    ]),
-    'Cyberpunk': const ColorFilter.matrix([
-      1.8, 0, 0.2, 0, 40,
-      0, 0.7, 0.9, 0, -30,
-      0.4, 0, 1.9, 0, 50,
-      0, 0, 0, 1, 0,
-    ]),
-  };
-
   final ColorFilter _hdrFilterMatrix = const ColorFilter.matrix([
     1.35, 0, 0, 0, 8,
     0, 1.35, 0, 0, 8,
@@ -97,6 +75,210 @@ class _TrimmerViewState extends State<TrimmerView> {
   void initState() {
     super.initState();
     _speech = stt.SpeechToText();
+  }
+
+  // ---------------- CAPCUT "ADD SOUND" BOTTOM SHEET (Screenshot 1) ----------------
+  void _openAddSoundModal() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: const Color(0xFF141417),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return SizedBox(
+              height: MediaQuery.of(context).size.height * 0.88,
+              child: Column(
+                children: [
+                  // Top Header with X and Title
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
+                    child: Row(
+                      children: [
+                        GestureDetector(
+                          onTap: () => Navigator.pop(context),
+                          child: const Icon(Icons.close, color: Colors.white, size: 24),
+                        ),
+                        const Expanded(
+                          child: Center(
+                            child: Text(
+                              "Add sound",
+                              style: TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 24),
+                      ],
+                    ),
+                  ),
+                  // Search Bar
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                    child: Container(
+                      height: 40,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF222228),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: const Row(
+                        children: [
+                          SizedBox(width: 12),
+                          Icon(Icons.search, color: Colors.white38, size: 20),
+                          SizedBox(width: 8),
+                          Expanded(
+                            child: TextField(
+                              style: TextStyle(color: Colors.white, fontSize: 14),
+                              decoration: InputDecoration(
+                                hintText: "Search songs or artists",
+                                hintStyle: TextStyle(color: Colors.white38, fontSize: 13),
+                                border: InputBorder.none,
+                                isDense: true,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    child: SingleChildScrollView(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Category Cards Grid (VLOG, Spring, LOVE, TRAVEL, POP, SALE)
+                          Padding(
+                            padding: const EdgeInsets.all(16.0),
+                            child: GridView.count(
+                              shrinkWrap: true,
+                              physics: const NeverScrollableScrollPhysics(),
+                              crossAxisCount: 3,
+                              mainAxisSpacing: 10,
+                              crossAxisSpacing: 10,
+                              childAspectRatio: 1.0,
+                              children: [
+                                _buildCategoryCard("VLOG", const [Color(0xFF8E9EAB), Color(0xFFEEF2F3)]),
+                                _buildCategoryCard("🌱 Spring", const [Color(0xFF56AB2F), Color(0xFFA8E063)]),
+                                _buildCategoryCard("LOVE", const [Color(0xFFFF416C), Color(0xFFFF4B2B)]),
+                                _buildCategoryCard("TRAVEL", const [Color(0xFF2193B0), Color(0xFF6DD5ED)]),
+                                _buildCategoryCard("POP", const [Color(0xFF4A00E0), Color(0xFF8E2DE2)]),
+                                _buildCategoryCard("SALE", const [Color(0xFFF12711), Color(0xFFF5AF19)]),
+                              ],
+                            ),
+                          ),
+                          // Sub Tabs: TikTok, Folder (Device file), Flame (Trending), Bookmark
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceAround,
+                              children: [
+                                const Icon(Icons.music_note_rounded, color: Colors.white38, size: 22),
+                                GestureDetector(
+                                  onTap: () async {
+                                    Navigator.pop(context);
+                                    _pickDeviceAudio();
+                                  },
+                                  child: const Icon(Icons.folder_open_rounded, color: Colors.white70, size: 24),
+                                ),
+                                const Icon(Icons.local_fire_department, color: Color(0xFF00E5FF), size: 26),
+                                const Icon(Icons.bookmark_border_rounded, color: Colors.white38, size: 22),
+                              ],
+                            ),
+                          ),
+                          const Divider(color: Colors.white12, thickness: 1),
+                          // Recommended Songs Header
+                          const Padding(
+                            padding: EdgeInsets.fromLTRB(16, 12, 16, 8),
+                            child: Text(
+                              "Recommended",
+                              style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                          // Music List
+                          _buildMusicTile("MaskOff Freestyle", "Müd & Seventeenbb", "01:00", const Color(0xFFE53935)),
+                          _buildMusicTile("Modern city pop, fashion, Vlog", "Loquat Music", "03:48", const Color(0xFF1E88E5)),
+                          _buildMusicTile("Drake style / HIPHOP beat(149)", "Burning Man", "02:45", const Color(0xFF8E24AA)),
+                          _buildMusicTile("Acoustic Chill Vibes", "Summer Beats", "02:15", const Color(0xFF43A047)),
+                          const SizedBox(height: 20),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildCategoryCard(String title, List<Color> colors) {
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(colors: colors, begin: Alignment.topLeft, end: Alignment.bottomRight),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Center(
+        child: Text(
+          title,
+          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 13, letterSpacing: 0.8),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMusicTile(String title, String artist, String duration, Color coverColor) {
+    return ListTile(
+      leading: Container(
+        width: 44,
+        height: 44,
+        decoration: BoxDecoration(color: coverColor, borderRadius: BorderRadius.circular(8)),
+        child: const Icon(Icons.music_note, color: Colors.white, size: 24),
+      ),
+      title: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold)),
+      subtitle: Text("$artist • $duration", style: const TextStyle(color: Colors.white54, fontSize: 11)),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.bookmark_border, color: Colors.white54, size: 20),
+          const SizedBox(width: 14),
+          GestureDetector(
+            onTap: () {
+              setState(() => _selectedMusicTitle = title);
+              Navigator.pop(context);
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  backgroundColor: const Color(0xFF00E5FF),
+                  content: Text("🎵 Added: $title", style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+                ),
+              );
+            },
+            child: const Icon(Icons.download_for_offline_outlined, color: Color(0xFF00E5FF), size: 24),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _pickDeviceAudio() async {
+    FilePickerResult? result = await FilePicker.platform.pickFiles(type: FileType.audio);
+    if (result != null && result.files.single.path != null) {
+      setState(() {
+        _bgMusicPath = result.files.single.path;
+        _selectedMusicTitle = result.files.single.name;
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: const Color(0xFF00E5FF),
+            content: Text("🎵 Audio Loaded: $_selectedMusicTitle", style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+          ),
+        );
+      }
+    }
   }
 
   void _showAddTextDialog() {
@@ -111,7 +293,7 @@ class _TrimmerViewState extends State<TrimmerView> {
           autofocus: true,
           style: const TextStyle(color: Colors.white),
           decoration: const InputDecoration(
-            hintText: "Enter title or channel name...",
+            hintText: "Enter text...",
             hintStyle: TextStyle(color: Colors.white38),
             enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: Color(0xFF00E5FF))),
           ),
@@ -135,21 +317,6 @@ class _TrimmerViewState extends State<TrimmerView> {
         ],
       ),
     );
-  }
-
-  void _pickBackgroundMusic() async {
-    FilePickerResult? result = await FilePicker.platform.pickFiles(type: FileType.audio);
-    if (result != null && result.files.single.path != null) {
-      setState(() => _bgMusicPath = result.files.single.path);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            backgroundColor: Color(0xFF00E5FF),
-            content: Text("🎵 Music Loaded Successfully!", style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
-          ),
-        );
-      }
-    }
   }
 
   void _generateAICaptions() async {
@@ -185,8 +352,8 @@ class _TrimmerViewState extends State<TrimmerView> {
     if (_isMirrorH) videoFilter += ",hflip";
     if (_isReverse) videoFilter += ",reverse";
 
-    if (_selectedRatio == '9:16') {
-      videoFilter += ",scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2:black";
+    if (_selectedResolution == "1080P") {
+      videoFilter += ",scale=1080:-2";
     }
 
     if (_aiHdrEnhance) {
@@ -221,54 +388,70 @@ class _TrimmerViewState extends State<TrimmerView> {
     });
   }
 
+  // ---------------- 2. CAPCUT MAIN EDITOR SCREEN (Screenshot 2) ----------------
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0D0D11),
+      backgroundColor: const Color(0xFF101012),
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.close, color: Colors.white),
+          icon: const Icon(Icons.close, color: Colors.white, size: 22),
           onPressed: () => Navigator.pop(context),
         ),
+        title: const Row(
+          children: [
+            Icon(Icons.school_outlined, color: Colors.white70, size: 20),
+            SizedBox(width: 10),
+            Icon(Icons.local_fire_department, color: Color(0xFFFF5252), size: 22),
+          ],
+        ),
         actions: [
+          // 1080P Dropdown
           Container(
-            margin: const EdgeInsets.symmetric(vertical: 10),
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-            decoration: BoxDecoration(color: const Color(0xFF1E1E26), borderRadius: BorderRadius.circular(8)),
-            child: const Row(
+            margin: const EdgeInsets.symmetric(vertical: 11),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
+            decoration: BoxDecoration(
+              color: const Color(0xFF222228),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Row(
               children: [
-                Text("AI UHD", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white)),
-                Icon(Icons.arrow_drop_down, color: Colors.white70, size: 18),
+                Text(_selectedResolution, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white)),
+                const Icon(Icons.arrow_drop_down, color: Colors.white70, size: 18),
               ],
             ),
           ),
-          const SizedBox(width: 10),
+          const SizedBox(width: 8),
+          // Cyan Export Button
           Padding(
             padding: const EdgeInsets.only(right: 12.0, top: 10, bottom: 10),
             child: ElevatedButton(
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF00E5FF),
+                backgroundColor: const Color(0xFF24D2DB),
                 foregroundColor: Colors.black,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                elevation: 0,
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
               ),
               onPressed: _isExporting ? null : _exportVideo,
               child: _isExporting
-                  ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.black))
-                  : const Text("Export", style: TextStyle(fontWeight: FontWeight.bold)),
+                  ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.black))
+                  : const Text("Export", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
             ),
           )
         ],
       ),
       body: Column(
         children: [
-          // CapCut Video Preview Frame with Cyan Outline
+          // CapCut Video Viewport with Cyan Border
           Expanded(
             child: Center(
               child: Container(
+                margin: const EdgeInsets.symmetric(horizontal: 16),
                 decoration: BoxDecoration(
-                  border: Border.all(color: const Color(0xFF00E5FF), width: 1.5),
+                  border: Border.all(color: const Color(0xFF24D2DB), width: 2.0),
                 ),
                 child: Stack(
                   alignment: Alignment.center,
@@ -301,88 +484,150 @@ class _TrimmerViewState extends State<TrimmerView> {
               ),
             ),
           ),
-          // CapCut Multi-Track Timeline Area
-          Container(
-            color: const Color(0xFF14141A),
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-            child: Column(
+          // Center Timecode and Play Controls
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
+                const Icon(Icons.fullscreen, color: Colors.white70, size: 20),
                 Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text("00:00 / 00:15", style: TextStyle(fontSize: 11, color: Colors.white54)),
+                    const Text("00:02", style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold)),
+                    const Text(" / 00:15", style: TextStyle(color: Colors.white38, fontSize: 11)),
+                    const SizedBox(width: 14),
                     IconButton(
-                      icon: Icon(_isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded, size: 32, color: Colors.white),
+                      icon: Icon(_isPlaying ? Icons.pause : Icons.play_arrow, color: Colors.white, size: 28),
                       onPressed: () async {
                         bool state = await widget._trimmer.videoPlaybackControl(startValue: _startValue, endValue: _endValue);
                         setState(() => _isPlaying = state);
                       },
                     ),
-                    const Icon(Icons.fullscreen, size: 20, color: Colors.white54),
                   ],
                 ),
-                // Video Clip Track
-                TrimViewer(
-                  trimmer: widget._trimmer,
-                  viewerHeight: 45.0,
-                  viewerWidth: MediaQuery.of(context).size.width - 28,
-                  maxVideoLength: const Duration(minutes: 10),
-                  onChangeStart: (v) => _startValue = v,
-                  onChangeEnd: (v) => _endValue = v,
-                  onChangePlaybackState: (v) => setState(() => _isPlaying = v),
+                const Row(
+                  children: [
+                    Icon(Icons.diamond_outlined, color: Colors.white70, size: 18),
+                    SizedBox(width: 14),
+                    Icon(Icons.undo, color: Colors.white70, size: 18),
+                    SizedBox(width: 14),
+                    Icon(Icons.redo, color: Colors.white70, size: 18),
+                  ],
                 ),
-                const SizedBox(height: 6),
-                // CapCut "+ Add audio" timeline track
+              ],
+            ),
+          ),
+          // Multi-Track Timeline (White playhead, Cover icon, Clip strip, + Add audio)
+          Container(
+            color: const Color(0xFF16161A),
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: Column(
+              children: [
+                Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    Row(
+                      children: [
+                        const SizedBox(width: 12),
+                        // Cover Tile
+                        Container(
+                          width: 44,
+                          height: 48,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF222228),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: const Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.edit_outlined, size: 14, color: Colors.white70),
+                              SizedBox(height: 2),
+                              Text("Cover", style: TextStyle(fontSize: 9, color: Colors.white70)),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        // Trimmer Video Strip
+                        Expanded(
+                          child: TrimViewer(
+                            trimmer: widget._trimmer,
+                            viewerHeight: 48.0,
+                            viewerWidth: MediaQuery.of(context).size.width - 120,
+                            maxVideoLength: const Duration(minutes: 10),
+                            onChangeStart: (v) => _startValue = v,
+                            onChangeEnd: (v) => _endValue = v,
+                            onChangePlaybackState: (v) => setState(() => _isPlaying = v),
+                          ),
+                        ),
+                        // Plus (+) Add Clip Button
+                        Container(
+                          margin: const EdgeInsets.only(right: 12, left: 6),
+                          width: 32,
+                          height: 32,
+                          decoration: BoxDecoration(color: const Color(0xFF2A2A32), borderRadius: BorderRadius.circular(6)),
+                          child: const Icon(Icons.add, color: Colors.white, size: 20),
+                        ),
+                      ],
+                    ),
+                    // White Playhead Needle Center Line
+                    Container(width: 2, height: 60, color: Colors.white),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                // CapCut "+ Add audio" Row (Opens Screenshot 1 Music Screen)
                 GestureDetector(
-                  onTap: _pickBackgroundMusic,
+                  onTap: _openAddSoundModal,
                   child: Container(
+                    margin: const EdgeInsets.symmetric(horizontal: 16),
                     width: double.infinity,
                     height: 28,
                     decoration: BoxDecoration(
-                      color: const Color(0xFF1F1F28),
-                      borderRadius: BorderRadius.circular(6),
+                      color: const Color(0xFF1E1E24),
+                      borderRadius: BorderRadius.circular(4),
                     ),
-                    child: Center(
-                      child: Text(
-                        _bgMusicPath != null ? "🎵 Audio Track Added" : "+ Add audio",
-                        style: const TextStyle(fontSize: 11, color: Colors.white60, fontWeight: FontWeight.w500),
-                      ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(Icons.add, size: 14, color: Colors.white70),
+                        const SizedBox(width: 6),
+                        Text(
+                          _selectedMusicTitle.isNotEmpty ? "🎵 $_selectedMusicTitle" : "Add audio",
+                          style: const TextStyle(fontSize: 11, color: Colors.white70, fontWeight: FontWeight.w500),
+                        ),
+                      ],
                     ),
                   ),
                 ),
               ],
             ),
           ),
-          // CapCut Bottom Action Toolbar
+          // CapCut Bottom Toolbar (Screenshot 2: Split, Speed, Animations, Effects, Delete, Enhance voice)
           Container(
-            color: const Color(0xFF101014),
-            height: 70,
+            color: const Color(0xFF101012),
+            height: 64,
             child: SingleChildScrollView(
               scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 10),
+              padding: const EdgeInsets.symmetric(horizontal: 8),
               child: Row(
                 children: [
-                  _buildCapCutAction(Icons.splitscreen_rounded, "Split", () {}),
-                  _buildCapCutAction(Icons.speed_rounded, "${_speed}x", () {
+                  _buildToolbarItem(Icons.arrow_back_ios, "", () => Navigator.pop(context), isArrow: true),
+                  _buildToolbarItem(Icons.splitscreen_rounded, "Split", () {}),
+                  _buildToolbarItem(Icons.speed_rounded, "Speed", () {
                     setState(() => _speed = _speed == 1.0 ? 2.0 : (_speed == 2.0 ? 0.5 : 1.0));
                   }),
-                  _buildCapCutAction(Icons.text_fields_rounded, "Text", _showAddTextDialog),
-                  _buildCapCutAction(Icons.auto_fix_high_rounded, "AI Captions", _generateAICaptions),
-                  _buildCapCutAction(Icons.aspect_ratio_rounded, "Canvas", () {
-                    setState(() => _selectedRatio = _selectedRatio == 'Original' ? '9:16' : 'Original');
-                  }),
-                  _buildCapCutAction(Icons.auto_awesome, "4K HDR", () {
-                    setState(() => _aiHdrEnhance = !_aiHdrEnhance);
-                  }),
-                  _buildCapCutAction(Icons.filter_vintage_rounded, "Filters", () {
+                  _buildToolbarItem(Icons.play_circle_outline, "Animations", () {}),
+                  _buildToolbarItem(Icons.auto_awesome_outlined, "Effects", () {
                     final keys = _filters.keys.toList();
                     setState(() => _selectedFilter = keys[(keys.indexOf(_selectedFilter) + 1) % keys.length]);
                   }),
-                  _buildCapCutAction(Icons.replay_rounded, "Reverse", () {
-                    setState(() => _isReverse = !_isReverse);
+                  _buildToolbarItem(Icons.delete_outline, "Delete", () {}),
+                  _buildToolbarItem(Icons.mic_none_outlined, "Enhance voice", () {
+                    setState(() => _aiVoiceMode = _aiVoiceMode == 'Off' ? 'Voice Isolate' : 'Off');
                   }),
-                  _buildCapCutAction(Icons.flip_rounded, "Mirror", () {
-                    setState(() => _isMirrorH = !_isMirrorH);
+                  _buildToolbarItem(Icons.text_fields_rounded, "Text", _showAddTextDialog),
+                  _buildToolbarItem(Icons.subtitles_outlined, "AI Captions", _generateAICaptions),
+                  _buildToolbarItem(Icons.hdr_on_outlined, "4K HDR", () {
+                    setState(() => _aiHdrEnhance = !_aiHdrEnhance);
                   }),
                 ],
               ),
@@ -393,7 +638,7 @@ class _TrimmerViewState extends State<TrimmerView> {
     );
   }
 
-  Widget _buildCapCutAction(IconData icon, String title, VoidCallback onTap) {
+  Widget _buildToolbarItem(IconData icon, String label, VoidCallback onTap, {bool isArrow = false}) {
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -401,9 +646,11 @@ class _TrimmerViewState extends State<TrimmerView> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icon, size: 24, color: Colors.white),
-            const SizedBox(height: 4),
-            Text(title, style: const TextStyle(fontSize: 10, color: Colors.white70)),
+            Icon(icon, size: isArrow ? 16 : 22, color: Colors.white),
+            if (label.isNotEmpty) ...[
+              const SizedBox(height: 4),
+              Text(label, style: const TextStyle(fontSize: 10, color: Colors.white70)),
+            ]
           ],
         ),
       ),
