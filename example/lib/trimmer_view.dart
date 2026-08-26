@@ -21,6 +21,7 @@ class _TrimmerViewState extends State<TrimmerView> {
   bool _isExporting = false;
   bool _isGeneratingCaptions = false;
   String _selectedFilter = 'Normal';
+  String _bgCutoutMode = 'Off'; // Off, GreenScreen, BlurBG, BlackBG
   double _speed = 1.0;
   String _autoCaptionText = "";
   late stt.SpeechToText _speech;
@@ -56,7 +57,6 @@ class _TrimmerViewState extends State<TrimmerView> {
   void _generateAICaptions() async {
     setState(() => _isGeneratingCaptions = true);
     
-    // AI Speech-to-Text Recognition
     bool available = await _speech.initialize(
       onError: (val) => debugPrint('onError: $val'),
       onStatus: (val) => debugPrint('onStatus: $val'),
@@ -84,6 +84,25 @@ class _TrimmerViewState extends State<TrimmerView> {
     }
   }
 
+  void _toggleCutout() {
+    setState(() {
+      if (_bgCutoutMode == 'Off') {
+        _bgCutoutMode = 'Chroma';
+      } else if (_bgCutoutMode == 'Chroma') {
+        _bgCutoutMode = 'AI Cutout';
+      } else {
+        _bgCutoutMode = 'Off';
+      }
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        backgroundColor: const Color(0xFF7C4DFF),
+        content: Text("AI Cutout Mode: $_bgCutoutMode", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+      ),
+    );
+  }
+
   Future<void> _exportVideo() async {
     setState(() => _isExporting = true);
 
@@ -97,15 +116,22 @@ class _TrimmerViewState extends State<TrimmerView> {
     String setpts = (1.0 / _speed).toStringAsFixed(2);
     String atempo = _speed.toStringAsFixed(2);
 
-    String filterStr = "";
+    String filterChain = "setpts=${setpts}*PTS";
+
+    if (_bgCutoutMode == 'Chroma') {
+      filterChain += ",colorkey=0x00FF00:0.3:0.1";
+    } else if (_bgCutoutMode == 'AI Cutout') {
+      filterChain += ",boxblur=10:1[bg];[0:v]crop=iw:ih[fg];[bg][fg]overlay=0:0";
+    }
+
     if (_selectedFilter == 'B&W') {
-      filterStr = ",hue=s=0";
+      filterChain += ",hue=s=0";
     } else if (_selectedFilter == 'Warm') {
-      filterStr = ",curves=vintage";
+      filterChain += ",curves=vintage";
     }
 
     String command =
-        "-ss $startSec -i \"${widget.videoPath}\" -t $durationSec -filter_complex \"[0:v]setpts=${setpts}*PTS$filterStr[v];[0:a]atempo=$atempo[a]\" -map \"[v]\" -map \"[a]\" -preset ultrafast \"$outPath\"";
+        "-ss $startSec -i \"${widget.videoPath}\" -t $durationSec -filter_complex \"[0:v]$filterChain[v];[0:a]atempo=$atempo[a]\" -map \"[v]\" -map \"[a]\" -preset ultrafast \"$outPath\"";
 
     await FFmpegKit.executeAsync(command, (session) async {
       final returnCode = await session.getReturnCode();
@@ -135,7 +161,7 @@ class _TrimmerViewState extends State<TrimmerView> {
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        title: const Text("Editor", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+        title: const Text("Shadow Cut Pro", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
         actions: [
           Padding(
             padding: const EdgeInsets.only(right: 12.0),
@@ -160,12 +186,15 @@ class _TrimmerViewState extends State<TrimmerView> {
               child: Stack(
                 alignment: Alignment.center,
                 children: [
-                  _filters[_selectedFilter] != null
-                      ? ColorFiltered(
-                          colorFilter: _filters[_selectedFilter]!,
-                          child: VideoViewer(trimmer: widget._trimmer),
-                        )
-                      : VideoViewer(trimmer: widget._trimmer),
+                  Container(
+                    color: _bgCutoutMode != 'Off' ? const Color(0xFF1E1E2C) : Colors.transparent,
+                    child: _filters[_selectedFilter] != null
+                        ? ColorFiltered(
+                            colorFilter: _filters[_selectedFilter]!,
+                            child: VideoViewer(trimmer: widget._trimmer),
+                          )
+                        : VideoViewer(trimmer: widget._trimmer),
+                  ),
                   if (_autoCaptionText.isNotEmpty)
                     Positioned(
                       bottom: 40,
@@ -216,30 +245,43 @@ class _TrimmerViewState extends State<TrimmerView> {
                         setState(() => _isPlaying = state);
                       },
                     ),
-                    Row(
-                      children: [
-                        _buildToolOption(
-                          "AI Captions",
-                          _isGeneratingCaptions ? "..." : (_autoCaptionText.isEmpty ? "OFF" : "ON"),
-                          _isGeneratingCaptions ? () {} : _generateAICaptions,
-                          isAi: true,
+                    Expanded(
+                      child: SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: Row(
+                          children: [
+                            const SizedBox(width: 8),
+                            _buildToolOption(
+                              "AI Cutout",
+                              _bgCutoutMode,
+                              _toggleCutout,
+                              isAi: true,
+                            ),
+                            const SizedBox(width: 8),
+                            _buildToolOption(
+                              "AI Captions",
+                              _isGeneratingCaptions ? "..." : (_autoCaptionText.isEmpty ? "OFF" : "ON"),
+                              _isGeneratingCaptions ? () {} : _generateAICaptions,
+                              isAi: true,
+                            ),
+                            const SizedBox(width: 8),
+                            _buildToolOption("Speed", "${_speed}x", () {
+                              setState(() {
+                                if (_speed == 1.0) _speed = 1.5;
+                                else if (_speed == 1.5) _speed = 2.0;
+                                else if (_speed == 2.0) _speed = 0.5;
+                                else _speed = 1.0;
+                              });
+                            }),
+                            const SizedBox(width: 8),
+                            _buildToolOption("Filter", _selectedFilter, () {
+                              final keys = _filters.keys.toList();
+                              int nextIdx = (keys.indexOf(_selectedFilter) + 1) % keys.length;
+                              setState(() => _selectedFilter = keys[nextIdx]);
+                            }),
+                          ],
                         ),
-                        const SizedBox(width: 8),
-                        _buildToolOption("Speed", "${_speed}x", () {
-                          setState(() {
-                            if (_speed == 1.0) _speed = 1.5;
-                            else if (_speed == 1.5) _speed = 2.0;
-                            else if (_speed == 2.0) _speed = 0.5;
-                            else _speed = 1.0;
-                          });
-                        }),
-                        const SizedBox(width: 8),
-                        _buildToolOption("Filter", _selectedFilter, () {
-                          final keys = _filters.keys.toList();
-                          int nextIdx = (keys.indexOf(_selectedFilter) + 1) % keys.length;
-                          setState(() => _selectedFilter = keys[nextIdx]);
-                        }),
-                      ],
+                      ),
                     ),
                   ],
                 ),
