@@ -1,5 +1,5 @@
 name: video_trimmer_example
-description: "Shadow Cut Editor - CapCut Style Flutter Video Editor"
+description: "Shadow Cut Editor"
 publish_to: "none"
 version: 1.0.0+1
 
@@ -13,7 +13,6 @@ dependencies:
     path: ../
   file_picker: ^8.0.0
   ffmpeg_kit_flutter_min_gpl: ^6.0.3
-  google_fonts: ^6.1.0
   path_provider: ^2.1.2
   speech_to_text: ^7.0.0
 
