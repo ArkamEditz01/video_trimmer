@@ -2,657 +2,345 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:video_trimmer/video_trimmer.dart';
-import 'package:ffmpeg_kit_flutter_min_gpl/ffmpeg_kit.dart';
-import 'package:ffmpeg_kit_flutter_min_gpl/return_code.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:speech_to_text/speech_to_text.dart' as stt;
+import 'trimmer_view.dart';
 
-class TrimmerView extends StatefulWidget {
-  final Trimmer _trimmer;
-  final String videoPath;
-  const TrimmerView(this._trimmer, this.videoPath, {super.key});
-
-  @override
-  State<TrimmerView> createState() => _TrimmerViewState();
+void main() {
+  WidgetsFlutterBinding.ensureInitialized();
+  runApp(const ShadowCutApp());
 }
 
-class _TrimmerViewState extends State<TrimmerView> {
-  double _startValue = 0.0;
-  double _endValue = 0.0;
-  bool _isPlaying = false;
-  bool _isExporting = false;
-  bool _isGeneratingCaptions = false;
-  
-  // Custom Text & Watermark
-  String _customText = "";
-  Offset _textPosition = const Offset(0, 0);
-
-  // FX & AI States
-  String _selectedGlitch = 'Off'; // Off, RGB Split, VHS Glitch, Cyberpunk
-  String? _bgMusicPath;
-  String _selectedRatio = 'Original';
-  String _selectedFilter = 'Normal';
-  String _bgCutoutMode = 'Off'; 
-  String _aiVelocityMode = 'Off'; 
-  String _aiVoiceMode = 'Off';
-  bool _aiHdrEnhance = false;
-  bool _isReverse = false;
-  bool _isMirrorH = false;
-  double _speed = 1.0;
-  String _autoCaptionText = "";
-  late stt.SpeechToText _speech;
-
-  final Map<String, ColorFilter?> _filters = {
-    'Normal': null,
-    'Cinematic': const ColorFilter.matrix([
-      1.2, 0, 0, 0, -10,
-      0, 1.1, 0, 0, -5,
-      0, 0, 1.3, 0, 10,
-      0, 0, 0, 1, 0,
-    ]),
-    'B&W': const ColorFilter.matrix([
-      0.33, 0.59, 0.11, 0, 0,
-      0.33, 0.59, 0.11, 0, 0,
-      0.33, 0.59, 0.11, 0, 0,
-      0, 0, 0, 1, 0,
-    ]),
-    'Warm': const ColorFilter.matrix([
-      1.3, 0, 0, 0, 20,
-      0, 1.1, 0, 0, 10,
-      0, 0, 0.8, 0, -10,
-      0, 0, 0, 1, 0,
-    ]),
-  };
-
-  final Map<String, ColorFilter?> _glitchMatrices = {
-    'Off': null,
-    'RGB Split': const ColorFilter.matrix([
-      1.5, 0, 0, 0, 30,
-      0, 0.8, 0, 0, -20,
-      0, 0, 1.6, 0, 40,
-      0, 0, 0, 1, 0,
-    ]),
-    'VHS Glitch': const ColorFilter.matrix([
-      0.9, 0.2, 0, 0, 10,
-      0, 1.2, 0.1, 0, 5,
-      0.2, 0, 1.1, 0, -15,
-      0, 0, 0, 1, 0,
-    ]),
-    'Cyberpunk': const ColorFilter.matrix([
-      1.8, 0, 0.2, 0, 40,
-      0, 0.7, 0.9, 0, -30,
-      0.4, 0, 1.9, 0, 50,
-      0, 0, 0, 1, 0,
-    ]),
-  };
-
-  final ColorFilter _hdrFilterMatrix = const ColorFilter.matrix([
-    1.35, 0, 0, 0, 8,
-    0, 1.35, 0, 0, 8,
-    0, 0, 1.35, 0, 8,
-    0, 0, 0, 1.0, 0,
-  ]);
+class ShadowCutApp extends StatelessWidget {
+  const ShadowCutApp({super.key});
 
   @override
-  void initState() {
-    super.initState();
-    _speech = stt.SpeechToText();
-  }
-
-  void _toggleGlitch() {
-    setState(() {
-      if (_selectedGlitch == 'Off') {
-        _selectedGlitch = 'RGB Split';
-      } else if (_selectedGlitch == 'RGB Split') {
-        _selectedGlitch = 'VHS Glitch';
-      } else if (_selectedGlitch == 'VHS Glitch') {
-        _selectedGlitch = 'Cyberpunk';
-      } else {
-        _selectedGlitch = 'Off';
-      }
-    });
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        backgroundColor: const Color(0xFF7C4DFF),
-        content: Text("⚡ Glitch FX: $_selectedGlitch", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'Shadow Cut',
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(
+        brightness: Brightness.dark,
+        scaffoldBackgroundColor: const Color(0xFF121214),
+        primaryColor: const Color(0xFF00E5FF),
       ),
+      home: const LoginScreen(),
     );
   }
+}
 
-  void _showAddTextDialog() {
-    final controller = TextEditingController(text: _customText);
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF1E1E2C),
-        title: const Text("Add Text / Watermark", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          style: const TextStyle(color: Colors.white),
-          decoration: const InputDecoration(
-            hintText: "Enter title or channel name...",
-            hintStyle: TextStyle(color: Colors.white38),
-            enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: Color(0xFF00E5FF))),
+// ---------------- 1. CAPCUT LOGIN SCREEN ----------------
+class LoginScreen extends StatelessWidget {
+  const LoginScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.white,
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 28.0, vertical: 20.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Spacer(),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.black,
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: const Icon(Icons.content_cut_rounded, color: Colors.white, size: 36),
+                  ),
+                  const SizedBox(width: 12),
+                  const Text(
+                    "ShadowCut",
+                    style: TextStyle(
+                      fontSize: 32,
+                      fontWeight: FontWeight.w900,
+                      color: Colors.black,
+                      letterSpacing: -0.5,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              const Text(
+                "All-in-one AI Video Editor",
+                style: TextStyle(color: Colors.black54, fontSize: 14),
+              ),
+              const Spacer(),
+              _buildLoginButton(
+                icon: Icons.g_mobiledata_rounded,
+                text: "Continue with Google",
+                bgColor: const Color(0xFFF2F3F5),
+                textColor: Colors.black,
+                onTap: () => _goToHome(context),
+              ),
+              const SizedBox(height: 12),
+              _buildLoginButton(
+                icon: Icons.facebook,
+                text: "Sign in with Facebook",
+                bgColor: const Color(0xFF1877F2),
+                textColor: Colors.white,
+                onTap: () => _goToHome(context),
+              ),
+              const SizedBox(height: 12),
+              _buildLoginButton(
+                icon: Icons.person_outline,
+                text: "Guest Mode / Skip",
+                bgColor: Colors.black,
+                textColor: Colors.white,
+                onTap: () => _goToHome(context),
+              ),
+              const Spacer(),
+              const Text(
+                "By signing in, you agree to Terms of Service & Privacy Policy",
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 11, color: Colors.black38),
+              ),
+            ],
           ),
         ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              setState(() => _customText = "");
-              Navigator.pop(context);
-            },
-            child: const Text("Clear", style: TextStyle(color: Colors.redAccent)),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF00E5FF), foregroundColor: Colors.black),
-            onPressed: () {
-              setState(() => _customText = controller.text);
-              Navigator.pop(context);
-            },
-            child: const Text("Apply"),
-          ),
-        ],
       ),
     );
   }
 
-  void _pickBackgroundMusic() async {
-    FilePickerResult? result = await FilePicker.platform.pickFiles(
-      type: FileType.audio,
+  void _goToHome(BuildContext context) {
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute(builder: (context) => const CapCutHomeScreen()),
     );
-
-    if (result != null && result.files.single.path != null) {
-      setState(() {
-        _bgMusicPath = result.files.single.path;
-      });
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            backgroundColor: Color(0xFF00E5FF),
-            content: Text("🎵 Music Loaded Successfully!", style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
-          ),
-        );
-      }
-    }
   }
 
-  void _generateAICaptions() async {
-    setState(() => _isGeneratingCaptions = true);
-    
-    bool available = await _speech.initialize(
-      onError: (val) => debugPrint('onError: $val'),
-      onStatus: (val) => debugPrint('onStatus: $val'),
+  Widget _buildLoginButton({
+    required IconData icon,
+    required String text,
+    required Color bgColor,
+    required Color textColor,
+    required VoidCallback onTap,
+  }) {
+    return SizedBox(
+      width: double.infinity,
+      height: 52,
+      child: ElevatedButton.icon(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: bgColor,
+          foregroundColor: textColor,
+          elevation: 0,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(26)),
+        ),
+        icon: Icon(icon, size: 22, color: textColor),
+        label: Text(text, style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: textColor)),
+        onPressed: onTap,
+      ),
     );
+  }
+}
 
-    if (available) {
-      await Future.delayed(const Duration(seconds: 2));
-      setState(() {
-        _autoCaptionText = "🔥 AI Auto Subtitles Enabled!";
-        _isGeneratingCaptions = false;
-      });
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            backgroundColor: Color(0xFF00E5FF),
-            content: Text("✨ AI Auto Captions Generated!", style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+// ---------------- 2. CAPCUT MAIN HOME DASHBOARD ----------------
+class CapCutHomeScreen extends StatefulWidget {
+  const CapCutHomeScreen({super.key});
+
+  @override
+  State<CapCutHomeScreen> createState() => _CapCutHomeScreenState();
+}
+
+class _CapCutHomeScreenState extends State<CapCutHomeScreen> {
+  int _currentIndex = 0;
+  bool _isLoading = false;
+
+  void _pickVideo() async {
+    setState(() => _isLoading = true);
+    try {
+      FilePickerResult? result = await FilePicker.platform.pickFiles(
+        type: FileType.video,
+        allowCompression: false,
+      );
+
+      if (result != null && result.files.single.path != null) {
+        final file = File(result.files.single.path!);
+        final trimmer = Trimmer();
+        await trimmer.loadVideo(videoFile: file);
+
+        if (!mounted) return;
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (context) => TrimmerView(trimmer, file.path),
           ),
         );
       }
-    } else {
-      setState(() {
-        _autoCaptionText = "✨ Shadow Cut AI Auto Captions";
-        _isGeneratingCaptions = false;
-      });
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error loading video: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
     }
-  }
-
-  void _toggleAspectRatio() {
-    setState(() {
-      if (_selectedRatio == 'Original') {
-        _selectedRatio = '9:16';
-      } else if (_selectedRatio == '9:16') {
-        _selectedRatio = '16:9';
-      } else if (_selectedRatio == '16:9') {
-        _selectedRatio = '1:1';
-      } else {
-        _selectedRatio = 'Original';
-      }
-    });
-  }
-
-  void _toggleCutout() {
-    setState(() {
-      if (_bgCutoutMode == 'Off') {
-        _bgCutoutMode = 'Chroma';
-      } else if (_bgCutoutMode == 'Chroma') {
-        _bgCutoutMode = 'AI Cutout';
-      } else {
-        _bgCutoutMode = 'Off';
-      }
-    });
-  }
-
-  void _toggleVelocity() {
-    setState(() {
-      if (_aiVelocityMode == 'Off') {
-        _aiVelocityMode = '0.5x Smooth';
-        _speed = 0.5;
-      } else if (_aiVelocityMode == '0.5x Smooth') {
-        _aiVelocityMode = '0.25x Ultra';
-        _speed = 0.25;
-      } else if (_aiVelocityMode == '0.25x Ultra') {
-        _aiVelocityMode = '2.0x Fast';
-        _speed = 2.0;
-      } else {
-        _aiVelocityMode = 'Off';
-        _speed = 1.0;
-      }
-    });
-  }
-
-  void _toggleVoiceClean() {
-    setState(() {
-      if (_aiVoiceMode == 'Off') {
-        _aiVoiceMode = 'Denoise';
-      } else if (_aiVoiceMode == 'Denoise') {
-        _aiVoiceMode = 'Voice Isolate';
-      } else {
-        _aiVoiceMode = 'Off';
-      }
-    });
-  }
-
-  void _toggleHdrEnhancer() {
-    setState(() {
-      _aiHdrEnhance = !_aiHdrEnhance;
-    });
-  }
-
-  void _toggleReverse() {
-    setState(() {
-      _isReverse = !_isReverse;
-    });
-  }
-
-  void _toggleMirror() {
-    setState(() {
-      _isMirrorH = !_isMirrorH;
-    });
-  }
-
-  double? _getPreviewAspectRatio() {
-    if (_selectedRatio == '9:16') return 9 / 16;
-    if (_selectedRatio == '16:9') return 16 / 9;
-    if (_selectedRatio == '1:1') return 1 / 1;
-    return null;
-  }
-
-  Future<void> _exportVideo() async {
-    setState(() => _isExporting = true);
-
-    final dir = await getTemporaryDirectory();
-    final outPath = '${dir.path}/ShadowCut_${DateTime.now().millisecondsSinceEpoch}.mp4';
-
-    double startSec = _startValue / 1000.0;
-    double durationSec = (_endValue - _startValue) / 1000.0;
-    if (durationSec <= 0) durationSec = 5.0;
-
-    String setpts = (1.0 / _speed).toStringAsFixed(2);
-    String atempo = _speed < 0.5 ? "0.5" : _speed.toStringAsFixed(2);
-
-    // Video Filter Chain
-    String videoFilter = "setpts=${setpts}*PTS";
-
-    if (_isMirrorH) {
-      videoFilter += ",hflip";
-    }
-
-    if (_isReverse) {
-      videoFilter += ",reverse";
-    }
-
-    if (_selectedRatio == '9:16') {
-      videoFilter += ",scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2:black";
-    } else if (_selectedRatio == '16:9') {
-      videoFilter += ",scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2:black";
-    } else if (_selectedRatio == '1:1') {
-      videoFilter += ",scale=1080:1080:force_original_aspect_ratio=decrease,pad=1080:1080:(ow-iw)/2:(oh-ih)/2:black";
-    }
-
-    // Glitch FX via FFmpeg
-    if (_selectedGlitch == 'RGB Split') {
-      videoFilter += ",rgbashift=rh=8:bv=-8";
-    } else if (_selectedGlitch == 'VHS Glitch') {
-      videoFilter += ",noise=alls=20:allf=t+u,hue=s=1.5";
-    } else if (_selectedGlitch == 'Cyberpunk') {
-      videoFilter += ",rgbashift=rh=15:gh=-5:bv=10,eq=contrast=1.3:saturation=1.5";
-    }
-
-    if (_aiHdrEnhance) {
-      videoFilter += ",unsharp=5:5:1.2:5:5:0.0,eq=contrast=1.18:brightness=0.03:saturation=1.3";
-    }
-
-    if (_aiVelocityMode == '0.25x Ultra' || _aiVelocityMode == '0.5x Smooth') {
-      videoFilter += ",minterpolate='mi_mode=mci:mc_mode=aobmc:vsbmc=1:fps=60'";
-    }
-
-    if (_bgCutoutMode == 'Chroma') {
-      videoFilter += ",colorkey=0x00FF00:0.3:0.1";
-    } else if (_bgCutoutMode == 'AI Cutout') {
-      videoFilter += ",boxblur=10:1[bg];[0:v]crop=iw:ih[fg];[bg][fg]overlay=0:0";
-    }
-
-    if (_selectedFilter == 'B&W') {
-      videoFilter += ",hue=s=0";
-    } else if (_selectedFilter == 'Warm') {
-      videoFilter += ",curves=vintage";
-    }
-
-    if (_customText.isNotEmpty) {
-      String cleanText = _customText.replaceAll("'", "");
-      videoFilter += ",drawtext=text='$cleanText':fontcolor=white:fontsize=48:box=1:boxcolor=black@0.6:boxborderw=8:x=(w-text_w)/2:y=h*0.25";
-    }
-
-    // Audio Mixing
-    String command = "";
-    if (_bgMusicPath != null && File(_bgMusicPath!).existsSync()) {
-      command =
-          "-ss $startSec -i \"${widget.videoPath}\" -i \"$_bgMusicPath\" -t $durationSec -filter_complex \"[0:v]$videoFilter[v];[0:a]atempo=$atempo,volume=1.0[a1];[1:a]volume=0.4[a2];[a1][a2]amix=inputs=2:duration=first[a]\" -map \"[v]\" -map \"[a]\" -preset ultrafast \"$outPath\"";
-    } else {
-      String audioFilter = "atempo=$atempo";
-      if (_isReverse) audioFilter += ",areverse";
-      if (_aiVoiceMode == 'Denoise') audioFilter += ",afftdn=nf=-25,anlmdn=s=3";
-      if (_aiVoiceMode == 'Voice Isolate') audioFilter += ",afftdn=nf=-35,highpass=f=220,lowpass=f=3400,volume=1.6";
-
-      command =
-          "-ss $startSec -i \"${widget.videoPath}\" -t $durationSec -filter_complex \"[0:v]$videoFilter[v];[0:a]$audioFilter[a]\" -map \"[v]\" -map \"[a]\" -preset ultrafast \"$outPath\"";
-    }
-
-    await FFmpegKit.executeAsync(command, (session) async {
-      final returnCode = await session.getReturnCode();
-      setState(() => _isExporting = false);
-
-      if (ReturnCode.isSuccess(returnCode)) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            backgroundColor: const Color(0xFF00E5FF),
-            content: Text("Export Success: $outPath", style: const TextStyle(color: Colors.black)),
-          ),
-        );
-      } else {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Export complete.")),
-        );
-      }
-    });
   }
 
   @override
   Widget build(BuildContext context) {
-    double? ratio = _getPreviewAspectRatio();
-
     return Scaffold(
-      backgroundColor: const Color(0xFF0E0E0E),
+      backgroundColor: const Color(0xFF0F0F12),
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        title: const Text("Shadow Cut Pro AI", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+        title: const Text("ShadowCut", style: TextStyle(fontWeight: FontWeight.w900, fontSize: 22, letterSpacing: -0.5)),
         actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 12.0),
-            child: ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF00E5FF),
-                foregroundColor: Colors.black,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-              ),
-              onPressed: _isExporting ? null : _exportVideo,
-              child: _isExporting
-                  ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.black))
-                  : const Text("Export", style: TextStyle(fontWeight: FontWeight.bold)),
+          Container(
+            margin: const EdgeInsets.only(right: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(colors: [Color(0xFF7C4DFF), Color(0xFF00E5FF)]),
+              borderRadius: BorderRadius.circular(12),
             ),
-          )
+            child: const Text("PRO", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.black)),
+          ),
+          IconButton(icon: const Icon(Icons.search, size: 24), onPressed: () {}),
+          IconButton(icon: const Icon(Icons.settings_outlined, size: 24), onPressed: () {}),
         ],
       ),
-      body: Column(
-        children: [
-          Expanded(
-            child: Center(
-              child: Container(
-                decoration: BoxDecoration(
-                  border: ratio != null ? Border.all(color: Colors.white24, width: 1.5) : null,
-                ),
-                child: AspectRatio(
-                  aspectRatio: ratio ?? 16 / 9,
-                  child: Stack(
-                    alignment: Alignment.center,
-                    children: [
-                      Container(
-                        color: _bgCutoutMode != 'Off' ? const Color(0xFF1E1E2C) : Colors.black,
-                        child: Transform.scale(
-                          scaleX: _isMirrorH ? -1.0 : 1.0,
-                          child: _glitchMatrices[_selectedGlitch] != null
-                              ? ColorFiltered(
-                                  colorFilter: _glitchMatrices[_selectedGlitch]!,
-                                  child: VideoViewer(trimmer: widget._trimmer),
-                                )
-                              : (_aiHdrEnhance
-                                  ? ColorFiltered(
-                                      colorFilter: _hdrFilterMatrix,
-                                      child: _filters[_selectedFilter] != null
-                                          ? ColorFiltered(
-                                              colorFilter: _filters[_selectedFilter]!,
-                                              child: VideoViewer(trimmer: widget._trimmer),
-                                            )
-                                          : VideoViewer(trimmer: widget._trimmer),
-                                    )
-                                  : (_filters[_selectedFilter] != null
-                                      ? ColorFiltered(
-                                          colorFilter: _filters[_selectedFilter]!,
-                                          child: VideoViewer(trimmer: widget._trimmer),
-                                        )
-                                      : VideoViewer(trimmer: widget._trimmer))),
-                        ),
-                      ),
-                      if (_customText.isNotEmpty)
-                        Positioned(
-                          top: 60 + _textPosition.dy,
-                          left: 20 + _textPosition.dx,
-                          child: GestureDetector(
-                            onPanUpdate: (details) {
-                              setState(() {
-                                _textPosition += details.delta;
-                              });
-                            },
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-                              decoration: BoxDecoration(
-                                color: Colors.black.withOpacity(0.65),
-                                borderRadius: BorderRadius.circular(8),
-                                border: Border.all(color: Colors.white70, width: 1.5),
-                              ),
-                              child: Text(
-                                _customText,
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.bold,
-                                  shadows: [Shadow(color: Colors.cyanAccent, blurRadius: 8)],
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      if (_autoCaptionText.isNotEmpty)
-                        Positioned(
-                          bottom: 40,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                            decoration: BoxDecoration(
-                              color: Colors.black.withOpacity(0.75),
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(color: const Color(0xFF00E5FF), width: 1.5),
-                            ),
-                            child: Text(
-                              _autoCaptionText,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                                shadows: [Shadow(color: Colors.black, blurRadius: 4)],
-                              ),
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-          Container(
-            color: const Color(0xFF181818),
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-            child: Column(
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.symmetric(horizontal: 16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const SizedBox(height: 10),
+            // Top Quick AI Feature Tiles
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                TrimViewer(
-                  trimmer: widget._trimmer,
-                  viewerHeight: 50.0,
-                  viewerWidth: MediaQuery.of(context).size.width - 32,
-                  maxVideoLength: const Duration(minutes: 10),
-                  onChangeStart: (value) => _startValue = value,
-                  onChangeEnd: (value) => _endValue = value,
-                  onChangePlaybackState: (value) => setState(() => _isPlaying = value),
+                _buildTopAction(Icons.auto_stories_rounded, "Script to video"),
+                _buildTopAction(Icons.campaign_outlined, "Smart Ads"),
+                _buildTopAction(Icons.photo_filter_rounded, "Photo editor"),
+                _buildTopAction(Icons.translate_rounded, "AI Captions"),
+              ],
+            ),
+            const SizedBox(height: 20),
+            // Big CapCut New Project Button
+            GestureDetector(
+              onTap: _isLoading ? null : _pickVideo,
+              child: Container(
+                width: double.infinity,
+                height: 120,
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFF00D2FF), Color(0xFF3A7BD5)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(18),
+                  boxShadow: [
+                    BoxShadow(color: const Color(0xFF00D2FF).withOpacity(0.25), blurRadius: 15, offset: const Offset(0, 6)),
+                  ],
                 ),
-                const SizedBox(height: 12),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    IconButton(
-                      icon: Icon(_isPlaying ? Icons.pause_circle_filled : Icons.play_circle_filled, size: 40, color: const Color(0xFF00E5FF)),
-                      onPressed: () async {
-                        bool state = await widget._trimmer.videoPlaybackControl(startValue: _startValue, endValue: _endValue);
-                        setState(() => _isPlaying = state);
-                      },
-                    ),
-                    Expanded(
-                      child: SingleChildScrollView(
-                        scrollDirection: Axis.horizontal,
-                        child: Row(
-                          children: [
-                            const SizedBox(width: 8),
-                            _buildToolOption(
-                              "Glitch FX",
-                              _selectedGlitch,
-                              _toggleGlitch,
-                              isAi: true,
-                            ),
-                            const SizedBox(width: 8),
-                            _buildToolOption(
-                              "Text Overlay",
-                              _customText.isEmpty ? "+ Add" : "Edit",
-                              _showAddTextDialog,
-                            ),
-                            const SizedBox(width: 8),
-                            _buildToolOption(
-                              "Add Music",
-                              _bgMusicPath != null ? "🎵 Added" : "+ Pick",
-                              _pickBackgroundMusic,
-                            ),
-                            const SizedBox(width: 8),
-                            _buildToolOption(
-                              "Canvas",
-                              _selectedRatio,
-                              _toggleAspectRatio,
-                            ),
-                            const SizedBox(width: 8),
-                            _buildToolOption(
-                              "Reverse",
-                              _isReverse ? "ON" : "OFF",
-                              _toggleReverse,
-                            ),
-                            const SizedBox(width: 8),
-                            _buildToolOption(
-                              "Mirror",
-                              _isMirrorH ? "FLIP" : "OFF",
-                              _toggleMirror,
-                            ),
-                            const SizedBox(width: 8),
-                            _buildToolOption(
-                              "AI Audio",
-                              _aiVoiceMode,
-                              _toggleVoiceClean,
-                              isAi: true,
-                            ),
-                            const SizedBox(width: 8),
-                            _buildToolOption(
-                              "AI Enhancer",
-                              _aiHdrEnhance ? "4K HDR" : "OFF",
-                              _toggleHdrEnhancer,
-                              isAi: true,
-                            ),
-                            const SizedBox(width: 8),
-                            _buildToolOption(
-                              "AI Velocity",
-                              _aiVelocityMode,
-                              _toggleVelocity,
-                              isAi: true,
-                            ),
-                            const SizedBox(width: 8),
-                            _buildToolOption(
-                              "AI Cutout",
-                              _bgCutoutMode,
-                              _toggleCutout,
-                              isAi: true,
-                            ),
-                            const SizedBox(width: 8),
-                            _buildToolOption(
-                              "AI Captions",
-                              _isGeneratingCaptions ? "..." : (_autoCaptionText.isEmpty ? "OFF" : "ON"),
-                              _isGeneratingCaptions ? () {} : _generateAICaptions,
-                              isAi: true,
-                            ),
-                            const SizedBox(width: 8),
-                            _buildToolOption("Filter", _selectedFilter, () {
-                              final keys = _filters.keys.toList();
-                              int nextIdx = (keys.indexOf(_selectedFilter) + 1) % keys.length;
-                              setState(() => _selectedFilter = keys[nextIdx]);
-                            }),
-                          ],
-                        ),
-                      ),
+                    _isLoading
+                        ? const CircularProgressIndicator(color: Colors.white)
+                        : const Icon(Icons.add_box_rounded, size: 38, color: Colors.white),
+                    const SizedBox(width: 14),
+                    Text(
+                      _isLoading ? "Opening Media..." : "New project",
+                      style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: Colors.white),
                     ),
                   ],
                 ),
+              ),
+            ),
+            const SizedBox(height: 28),
+            // Recent Projects Header
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text("Projects", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(color: const Color(0xFF1C1C24), borderRadius: BorderRadius.circular(12)),
+                  child: const Row(
+                    children: [
+                      Icon(Icons.cloud_queue, size: 16, color: Color(0xFF00E5FF)),
+                      SizedBox(width: 6),
+                      Text("Cloud Space", style: TextStyle(fontSize: 12, color: Colors.white70)),
+                    ],
+                  ),
+                ),
               ],
             ),
-          ),
+            const SizedBox(height: 14),
+            // Project Grid Sample
+            GridView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 3,
+                crossAxisSpacing: 10,
+                mainAxisSpacing: 10,
+                childAspectRatio: 0.75,
+              ),
+              itemCount: 6,
+              itemBuilder: (context, index) {
+                return GestureDetector(
+                  onTap: _pickVideo,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF1E1E24),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.white10),
+                    ),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.play_circle_outline_rounded, color: Colors.white.withOpacity(0.5), size: 32),
+                        const SizedBox(height: 8),
+                        Text("Draft #0${index + 1}", style: const TextStyle(fontSize: 11, color: Colors.white70)),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+            const SizedBox(height: 30),
+          ],
+        ),
+      ),
+      // CapCut Exact Bottom Navigation Bar
+      bottomNavigationBar: BottomNavigationBar(
+        backgroundColor: const Color(0xFF121216),
+        type: BottomNavigationBarType.fixed,
+        selectedItemColor: Colors.white,
+        unselectedItemColor: Colors.white38,
+        currentIndex: _currentIndex,
+        selectedFontSize: 11,
+        unselectedFontSize: 11,
+        onTap: (index) => setState(() => _currentIndex = index),
+        items: const [
+          BottomNavigationBarItem(icon: Icon(Icons.content_cut_rounded), label: "Edit"),
+          BottomNavigationBarItem(icon: Icon(Icons.dashboard_customize_outlined), label: "Templates"),
+          BottomNavigationBarItem(icon: Icon(Icons.notifications_none_rounded), label: "Inbox"),
+          BottomNavigationBarItem(icon: Icon(Icons.person_outline_rounded), label: "Me"),
         ],
       ),
     );
   }
 
-  Widget _buildToolOption(String title, String value, VoidCallback onTap, {bool isAi = false}) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        decoration: BoxDecoration(
-          color: isAi ? const Color(0xFF2A1B4E) : const Color(0xFF262626),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: isAi ? const Color(0xFFB388FF) : Colors.white12),
+  Widget _buildTopAction(IconData icon, String label) {
+    return Column(
+      children: [
+        Container(
+          width: 52,
+          height: 52,
+          decoration: BoxDecoration(
+            color: const Color(0xFF1F1F26),
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Icon(icon, color: Colors.white, size: 24),
         ),
-        child: Column(
-          children: [
-            Text(title, style: TextStyle(fontSize: 10, color: isAi ? const Color(0xFFB388FF) : Colors.white54, fontWeight: FontWeight.bold)),
-            Text(value, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF00E5FF))),
-          ],
-        ),
-      ),
+        const SizedBox(height: 6),
+        Text(label, style: const TextStyle(fontSize: 11, color: Colors.white70)),
+      ],
     );
   }
 }
