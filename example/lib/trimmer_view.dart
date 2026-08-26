@@ -21,7 +21,8 @@ class _TrimmerViewState extends State<TrimmerView> {
   bool _isExporting = false;
   bool _isGeneratingCaptions = false;
   
-  // AI & Effects States
+  // AI & Canvas States
+  String _selectedRatio = 'Original'; // Original, 9:16, 16:9, 1:1
   String _selectedFilter = 'Normal';
   String _bgCutoutMode = 'Off'; 
   String _aiVelocityMode = 'Off'; 
@@ -98,6 +99,27 @@ class _TrimmerViewState extends State<TrimmerView> {
     }
   }
 
+  void _toggleAspectRatio() {
+    setState(() {
+      if (_selectedRatio == 'Original') {
+        _selectedRatio = '9:16';
+      } else if (_selectedRatio == '9:16') {
+        _selectedRatio = '16:9';
+      } else if (_selectedRatio == '16:9') {
+        _selectedRatio = '1:1';
+      } else {
+        _selectedRatio = 'Original';
+      }
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        backgroundColor: const Color(0xFF00E5FF),
+        content: Text("📐 Canvas Ratio: $_selectedRatio", style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+      ),
+    );
+  }
+
   void _toggleCutout() {
     setState(() {
       if (_bgCutoutMode == 'Off') {
@@ -108,13 +130,6 @@ class _TrimmerViewState extends State<TrimmerView> {
         _bgCutoutMode = 'Off';
       }
     });
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        backgroundColor: const Color(0xFF7C4DFF),
-        content: Text("AI Cutout Mode: $_bgCutoutMode", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-      ),
-    );
   }
 
   void _toggleVelocity() {
@@ -145,61 +160,31 @@ class _TrimmerViewState extends State<TrimmerView> {
         _aiVoiceMode = 'Off';
       }
     });
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        backgroundColor: _aiVoiceMode != 'Off' ? const Color(0xFF00E5FF) : Colors.grey,
-        content: Text(
-          "🎙️ AI Audio: $_aiVoiceMode",
-          style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
-        ),
-      ),
-    );
   }
 
   void _toggleHdrEnhancer() {
     setState(() {
       _aiHdrEnhance = !_aiHdrEnhance;
     });
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        backgroundColor: _aiHdrEnhance ? const Color(0xFF00E5FF) : Colors.grey,
-        content: Text(
-          _aiHdrEnhance ? "🌟 AI 4K HDR & Color Grading ON" : "AI Enhancer OFF",
-          style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
-        ),
-      ),
-    );
   }
 
   void _toggleReverse() {
     setState(() {
       _isReverse = !_isReverse;
     });
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        backgroundColor: _isReverse ? const Color(0xFF00E5FF) : Colors.grey,
-        content: Text(
-          _isReverse ? "⏪ AI Video Reverse ON" : "Video Reverse OFF",
-          style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
-        ),
-      ),
-    );
   }
 
   void _toggleMirror() {
     setState(() {
       _isMirrorH = !_isMirrorH;
     });
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        backgroundColor: _isMirrorH ? const Color(0xFF00E5FF) : Colors.grey,
-        content: Text(
-          _isMirrorH ? "🪞 Mirror Flip Horizontal ON" : "Mirror OFF",
-          style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
-        ),
-      ),
-    );
+  }
+
+  double? _getPreviewAspectRatio() {
+    if (_selectedRatio == '9:16') return 9 / 16;
+    if (_selectedRatio == '16:9') return 16 / 9;
+    if (_selectedRatio == '1:1') return 1 / 1;
+    return null;
   }
 
   Future<void> _exportVideo() async {
@@ -215,7 +200,7 @@ class _TrimmerViewState extends State<TrimmerView> {
     String setpts = (1.0 / _speed).toStringAsFixed(2);
     String atempo = _speed < 0.5 ? "0.5" : _speed.toStringAsFixed(2);
 
-    // Video Filter Setup
+    // Video Filter Chain
     String videoFilter = "setpts=${setpts}*PTS";
 
     if (_isMirrorH) {
@@ -224,6 +209,15 @@ class _TrimmerViewState extends State<TrimmerView> {
 
     if (_isReverse) {
       videoFilter += ",reverse";
+    }
+
+    // Aspect Ratio Scaling & Padding Filters
+    if (_selectedRatio == '9:16') {
+      videoFilter += ",scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2:black";
+    } else if (_selectedRatio == '16:9') {
+      videoFilter += ",scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2:black";
+    } else if (_selectedRatio == '1:1') {
+      videoFilter += ",scale=1080:1080:force_original_aspect_ratio=decrease,pad=1080:1080:(ow-iw)/2:(oh-ih)/2:black";
     }
 
     if (_aiHdrEnhance) {
@@ -284,6 +278,8 @@ class _TrimmerViewState extends State<TrimmerView> {
 
   @override
   Widget build(BuildContext context) {
+    double? ratio = _getPreviewAspectRatio();
+
     return Scaffold(
       backgroundColor: const Color(0xFF0E0E0E),
       appBar: AppBar(
@@ -311,53 +307,61 @@ class _TrimmerViewState extends State<TrimmerView> {
         children: [
           Expanded(
             child: Center(
-              child: Stack(
-                alignment: Alignment.center,
-                children: [
-                  Container(
-                    color: _bgCutoutMode != 'Off' ? const Color(0xFF1E1E2C) : Colors.transparent,
-                    child: Transform.scale(
-                      scaleX: _isMirrorH ? -1.0 : 1.0,
-                      child: _aiHdrEnhance
-                          ? ColorFiltered(
-                              colorFilter: _hdrFilterMatrix,
-                              child: _filters[_selectedFilter] != null
+              child: Container(
+                decoration: BoxDecoration(
+                  border: ratio != null ? Border.all(color: Colors.white24, width: 1.5) : null,
+                ),
+                child: AspectRatio(
+                  aspectRatio: ratio ?? 16 / 9,
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      Container(
+                        color: _bgCutoutMode != 'Off' ? const Color(0xFF1E1E2C) : Colors.black,
+                        child: Transform.scale(
+                          scaleX: _isMirrorH ? -1.0 : 1.0,
+                          child: _aiHdrEnhance
+                              ? ColorFiltered(
+                                  colorFilter: _hdrFilterMatrix,
+                                  child: _filters[_selectedFilter] != null
+                                      ? ColorFiltered(
+                                          colorFilter: _filters[_selectedFilter]!,
+                                          child: VideoViewer(trimmer: widget._trimmer),
+                                        )
+                                      : VideoViewer(trimmer: widget._trimmer),
+                                )
+                              : (_filters[_selectedFilter] != null
                                   ? ColorFiltered(
                                       colorFilter: _filters[_selectedFilter]!,
                                       child: VideoViewer(trimmer: widget._trimmer),
                                     )
-                                  : VideoViewer(trimmer: widget._trimmer),
-                            )
-                          : (_filters[_selectedFilter] != null
-                              ? ColorFiltered(
-                                  colorFilter: _filters[_selectedFilter]!,
-                                  child: VideoViewer(trimmer: widget._trimmer),
-                                )
-                              : VideoViewer(trimmer: widget._trimmer)),
-                    ),
-                  ),
-                  if (_autoCaptionText.isNotEmpty)
-                    Positioned(
-                      bottom: 40,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                        decoration: BoxDecoration(
-                          color: Colors.black.withOpacity(0.75),
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: const Color(0xFF00E5FF), width: 1.5),
-                        ),
-                        child: Text(
-                          _autoCaptionText,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                            shadows: [Shadow(color: Colors.black, blurRadius: 4)],
-                          ),
+                                  : VideoViewer(trimmer: widget._trimmer)),
                         ),
                       ),
-                    ),
-                ],
+                      if (_autoCaptionText.isNotEmpty)
+                        Positioned(
+                          bottom: 40,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                            decoration: BoxDecoration(
+                              color: Colors.black.withOpacity(0.75),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: const Color(0xFF00E5FF), width: 1.5),
+                            ),
+                            child: Text(
+                              _autoCaptionText,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                shadows: [Shadow(color: Colors.black, blurRadius: 4)],
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
               ),
             ),
           ),
@@ -391,6 +395,13 @@ class _TrimmerViewState extends State<TrimmerView> {
                         scrollDirection: Axis.horizontal,
                         child: Row(
                           children: [
+                            const SizedBox(width: 8),
+                            _buildToolOption(
+                              "Canvas",
+                              _selectedRatio,
+                              _toggleAspectRatio,
+                              isAi: true,
+                            ),
                             const SizedBox(width: 8),
                             _buildToolOption(
                               "Reverse",
