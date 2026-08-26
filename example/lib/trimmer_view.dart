@@ -26,6 +26,7 @@ class _TrimmerViewState extends State<TrimmerView> {
   String _bgCutoutMode = 'Off'; // Off, Chroma, AI Cutout
   String _aiVelocityMode = 'Off'; // Off, 0.25x Smooth, 0.5x Smooth, Fast 2x
   bool _aiAudioDenoise = false;
+  bool _aiHdrEnhance = false; // AI Smart HDR / Color Grading
   double _speed = 1.0;
   String _autoCaptionText = "";
   late stt.SpeechToText _speech;
@@ -51,6 +52,14 @@ class _TrimmerViewState extends State<TrimmerView> {
       0, 0, 0, 1, 0,
     ]),
   };
+
+  // AI HDR Matrix Overlay for Preview
+  final ColorFilter _hdrFilterMatrix = const ColorFilter.matrix([
+    1.35, 0, 0, 0, 8,
+    0, 1.35, 0, 0, 8,
+    0, 0, 1.35, 0, 8,
+    0, 0, 0, 1.0, 0,
+  ]);
 
   @override
   void initState() {
@@ -140,6 +149,21 @@ class _TrimmerViewState extends State<TrimmerView> {
     );
   }
 
+  void _toggleHdrEnhancer() {
+    setState(() {
+      _aiHdrEnhance = !_aiHdrEnhance;
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        backgroundColor: _aiHdrEnhance ? const Color(0xFF00E5FF) : Colors.grey,
+        content: Text(
+          _aiHdrEnhance ? "🌟 AI 4K HDR & Color Grading ON" : "AI Enhancer OFF",
+          style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
+        ),
+      ),
+    );
+  }
+
   Future<void> _exportVideo() async {
     setState(() => _isExporting = true);
 
@@ -153,10 +177,15 @@ class _TrimmerViewState extends State<TrimmerView> {
     String setpts = (1.0 / _speed).toStringAsFixed(2);
     String atempo = _speed < 0.5 ? "0.5" : _speed.toStringAsFixed(2);
 
-    // AI Video Filter Chain
+    // Video Filters
     String videoFilter = "setpts=${setpts}*PTS";
 
-    // AI Velocity Frame Interpolation for butter-smooth Slow Motion
+    // AI 4K HDR & Clarity Enhancement
+    if (_aiHdrEnhance) {
+      videoFilter += ",unsharp=5:5:1.2:5:5:0.0,eq=contrast=1.18:brightness=0.03:saturation=1.3";
+    }
+
+    // AI Velocity Frame Interpolation
     if (_aiVelocityMode == '0.25x Ultra' || _aiVelocityMode == '0.5x Smooth') {
       videoFilter += ",minterpolate='mi_mode=mci:mc_mode=aobmc:vsbmc=1:fps=60'";
     }
@@ -173,7 +202,7 @@ class _TrimmerViewState extends State<TrimmerView> {
       videoFilter += ",curves=vintage";
     }
 
-    // AI Audio Noise Cleaner Filter
+    // AI Audio Filter
     String audioFilter = "atempo=$atempo";
     if (_aiAudioDenoise) {
       audioFilter += ",afftdn=nf=-25,highpass=f=200,lowpass=f=3000";
@@ -237,12 +266,22 @@ class _TrimmerViewState extends State<TrimmerView> {
                 children: [
                   Container(
                     color: _bgCutoutMode != 'Off' ? const Color(0xFF1E1E2C) : Colors.transparent,
-                    child: _filters[_selectedFilter] != null
+                    child: _aiHdrEnhance
                         ? ColorFiltered(
-                            colorFilter: _filters[_selectedFilter]!,
-                            child: VideoViewer(trimmer: widget._trimmer),
+                            colorFilter: _hdrFilterMatrix,
+                            child: _filters[_selectedFilter] != null
+                                ? ColorFiltered(
+                                    colorFilter: _filters[_selectedFilter]!,
+                                    child: VideoViewer(trimmer: widget._trimmer),
+                                  )
+                                : VideoViewer(trimmer: widget._trimmer),
                           )
-                        : VideoViewer(trimmer: widget._trimmer),
+                        : (_filters[_selectedFilter] != null
+                            ? ColorFiltered(
+                                colorFilter: _filters[_selectedFilter]!,
+                                child: VideoViewer(trimmer: widget._trimmer),
+                              )
+                            : VideoViewer(trimmer: widget._trimmer)),
                   ),
                   if (_autoCaptionText.isNotEmpty)
                     Positioned(
@@ -299,6 +338,13 @@ class _TrimmerViewState extends State<TrimmerView> {
                         scrollDirection: Axis.horizontal,
                         child: Row(
                           children: [
+                            const SizedBox(width: 8),
+                            _buildToolOption(
+                              "AI Enhancer",
+                              _aiHdrEnhance ? "4K HDR" : "OFF",
+                              _toggleHdrEnhancer,
+                              isAi: true,
+                            ),
                             const SizedBox(width: 8),
                             _buildToolOption(
                               "AI Velocity",
