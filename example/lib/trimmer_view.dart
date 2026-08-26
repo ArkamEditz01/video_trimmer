@@ -23,9 +23,12 @@ class _TrimmerViewState extends State<TrimmerView> {
   bool _isExporting = false;
   bool _isGeneratingCaptions = false;
   
+  // Custom Text & Watermark
+  String _customText = "";
+  Offset _textPosition = const Offset(0, 0);
+
   // AI, Canvas & Music States
   String? _bgMusicPath;
-  String _bgMusicName = "No Music";
   String _selectedRatio = 'Original';
   String _selectedFilter = 'Normal';
   String _bgCutoutMode = 'Off'; 
@@ -73,6 +76,44 @@ class _TrimmerViewState extends State<TrimmerView> {
     _speech = stt.SpeechToText();
   }
 
+  void _showAddTextDialog() {
+    final controller = TextEditingController(text: _customText);
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF1E1E2C),
+        title: const Text("Add Text / Watermark", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          style: const TextStyle(color: Colors.white),
+          decoration: const InputDecoration(
+            hintText: "Enter title or channel name...",
+            hintStyle: TextStyle(color: Colors.white38),
+            enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: Color(0xFF00E5FF))),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              setState(() => _customText = "");
+              Navigator.pop(context);
+            },
+            child: const Text("Clear", style: TextStyle(color: Colors.redAccent)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF00E5FF), foregroundColor: Colors.black),
+            onPressed: () {
+              setState(() => _customText = controller.text);
+              Navigator.pop(context);
+            },
+            child: const Text("Apply"),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _pickBackgroundMusic() async {
     FilePickerResult? result = await FilePicker.platform.pickFiles(
       type: FileType.audio,
@@ -81,13 +122,12 @@ class _TrimmerViewState extends State<TrimmerView> {
     if (result != null && result.files.single.path != null) {
       setState(() {
         _bgMusicPath = result.files.single.path;
-        _bgMusicName = result.files.single.name;
       });
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            backgroundColor: const Color(0xFF00E5FF),
-            content: Text("🎵 Music Loaded: $_bgMusicName", style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+          const SnackBar(
+            backgroundColor: Color(0xFF00E5FF),
+            content: Text("🎵 Music Loaded Successfully!", style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
           ),
         );
       }
@@ -257,10 +297,15 @@ class _TrimmerViewState extends State<TrimmerView> {
       videoFilter += ",curves=vintage";
     }
 
-    // Audio Filter Setup & Mixing
+    // Text Draw Filter if user added text
+    if (_customText.isNotEmpty) {
+      String cleanText = _customText.replaceAll("'", "");
+      videoFilter += ",drawtext=text='$cleanText':fontcolor=white:fontsize=48:box=1:boxcolor=black@0.6:boxborderw=8:x=(w-text_w)/2:y=h*0.25";
+    }
+
+    // Audio Mixing
     String command = "";
     if (_bgMusicPath != null && File(_bgMusicPath!).existsSync()) {
-      // Merge Original Audio + Added Music Track
       command =
           "-ss $startSec -i \"${widget.videoPath}\" -i \"$_bgMusicPath\" -t $durationSec -filter_complex \"[0:v]$videoFilter[v];[0:a]atempo=$atempo,volume=1.0[a1];[1:a]volume=0.4[a2];[a1][a2]amix=inputs=2:duration=first[a]\" -map \"[v]\" -map \"[a]\" -preset ultrafast \"$outPath\"";
     } else {
@@ -356,6 +401,36 @@ class _TrimmerViewState extends State<TrimmerView> {
                                   : VideoViewer(trimmer: widget._trimmer)),
                         ),
                       ),
+                      // Movable Custom Text Overlay
+                      if (_customText.isNotEmpty)
+                        Positioned(
+                          top: 60 + _textPosition.dy,
+                          left: 20 + _textPosition.dx,
+                          child: GestureDetector(
+                            onPanUpdate: (details) {
+                              setState(() {
+                                _textPosition += details.delta;
+                              });
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                              decoration: BoxDecoration(
+                                color: Colors.black.withOpacity(0.65),
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(color: Colors.white70, width: 1.5),
+                              ),
+                              child: Text(
+                                _customText,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                  shadows: [Shadow(color: Colors.cyanAccent, blurRadius: 8)],
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
                       if (_autoCaptionText.isNotEmpty)
                         Positioned(
                           bottom: 40,
@@ -415,10 +490,16 @@ class _TrimmerViewState extends State<TrimmerView> {
                           children: [
                             const SizedBox(width: 8),
                             _buildToolOption(
+                              "Text Overlay",
+                              _customText.isEmpty ? "+ Add" : "Edit",
+                              _showAddTextDialog,
+                              isAi: true,
+                            ),
+                            const SizedBox(width: 8),
+                            _buildToolOption(
                               "Add Music",
                               _bgMusicPath != null ? "🎵 Added" : "+ Pick",
                               _pickBackgroundMusic,
-                              isAi: true,
                             ),
                             const SizedBox(width: 8),
                             _buildToolOption(
