@@ -1,70 +1,54 @@
-import 'dart:io';
-
-import 'package:example/preview.dart';
 import 'package:flutter/material.dart';
 import 'package:video_trimmer/video_trimmer.dart';
 
 class TrimmerView extends StatefulWidget {
-  final File file;
+  final Trimmer _trimmer;
+  const TrimmerView(this._trimmer, {super.key});
 
-  const TrimmerView(this.file, {super.key});
   @override
   State<TrimmerView> createState() => _TrimmerViewState();
 }
 
 class _TrimmerViewState extends State<TrimmerView> {
-  final Trimmer _trimmer = Trimmer();
-
   double _startValue = 0.0;
   double _endValue = 0.0;
-
   bool _isPlaying = false;
   bool _progressVisibility = false;
 
-  @override
-  void initState() {
-    super.initState();
-
-    _loadVideo();
-  }
-
-  void _loadVideo() {
-    _trimmer.loadVideo(videoFile: widget.file);
-  }
-
-  _saveVideo() {
+  Future<String?> _saveVideo() async {
     setState(() {
       _progressVisibility = true;
     });
 
-    _trimmer.saveTrimmedVideo(
+    String? result;
+    await widget._trimmer.saveTrimmedVideo(
       startValue: _startValue,
       endValue: _endValue,
-      onSave: (outputPath) {
-        setState(() => _progressVisibility = false);
+      onSave: (String? outputPath) {
+        setState(() {
+          _progressVisibility = false;
+        });
         debugPrint('OUTPUT PATH: $outputPath');
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (_) => Preview(outputPath),
-          ),
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Video saved: $outputPath')),
         );
       },
     );
+
+    return result;
   }
 
   @override
   Widget build(BuildContext context) {
-    return PopScope(
-      canPop: !Navigator.of(context).userGestureInProgress,
-      child: Scaffold(
-        backgroundColor: Colors.black,
-        appBar: AppBar(
-          title: const Text('Video Trimmer'),
-        ),
-        body: Center(
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text("Video Trimmer"),
+      ),
+      body: Builder(
+        builder: (context) => Center(
           child: Container(
             padding: const EdgeInsets.only(bottom: 30.0),
+            color: Colors.black,
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               mainAxisSize: MainAxisSize.max,
@@ -76,55 +60,49 @@ class _TrimmerViewState extends State<TrimmerView> {
                   ),
                 ),
                 ElevatedButton(
-                  onPressed: _progressVisibility ? null : () => _saveVideo(),
-                  child: const Text('SAVE'),
+                  onPressed: _progressVisibility
+                      ? null
+                      : () async {
+                          _saveVideo();
+                        },
+                  child: const Text("SAVE"),
                 ),
                 Expanded(
-                  child: VideoViewer(trimmer: _trimmer),
+                  child: VideoViewer(trimmer: widget._trimmer),
                 ),
                 Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(8.0),
-                    child: TrimViewer(
-                      trimmer: _trimmer,
-                      viewerHeight: 50.0,
-                      viewerWidth: MediaQuery.of(context).size.width,
-                      durationStyle: DurationStyle.FORMAT_MM_SS,
-                      maxVideoLength: const Duration(seconds: 10),
-                      editorProperties: TrimEditorProperties(
-                        borderPaintColor: Colors.yellow,
-                        borderWidth: 4,
-                        borderRadius: 5,
-                        circlePaintColor: Colors.yellow.shade800,
-                      ),
-                      areaProperties: TrimAreaProperties.edgeBlur(
-                        thumbnailQuality: 50,
-                      ),
-                      onChangeStart: (value) => _startValue = value,
-                      onChangeEnd: (value) => _endValue = value,
-                      onChangePlaybackState: (value) =>
-                          setState(() => _isPlaying = value),
-                    ),
+                  child: TrimViewer(
+                    trimmer: widget._trimmer,
+                    viewerHeight: 50.0,
+                    viewerWidth: MediaQuery.of(context).size.width,
+                    maxVideoLength: const Duration(seconds: 100),
+                    onChangeStart: (value) => _startValue = value,
+                    onChangeEnd: (value) => _endValue = value,
+                    onChangePlaybackState: (value) =>
+                        setState(() => _isPlaying = value),
                   ),
                 ),
                 TextButton(
                   child: _isPlaying
                       ? const Icon(
                           Icons.pause,
-                          size: 80.0,
+                          size: 60.0,
                           color: Colors.white,
                         )
                       : const Icon(
                           Icons.play_arrow,
-                          size: 80.0,
+                          size: 60.0,
                           color: Colors.white,
                         ),
                   onPressed: () async {
-                    bool playbackState = await _trimmer.videoPlaybackControl(
+                    bool playbackState =
+                        await widget._trimmer.videoPlaybackControl(
                       startValue: _startValue,
                       endValue: _endValue,
                     );
-                    setState(() => _isPlaying = playbackState);
+                    setState(() {
+                      _isPlaying = playbackState;
+                    });
                   },
                 )
               ],
