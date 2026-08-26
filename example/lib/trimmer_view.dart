@@ -27,7 +27,8 @@ class _TrimmerViewState extends State<TrimmerView> {
   String _customText = "";
   Offset _textPosition = const Offset(0, 0);
 
-  // AI, Canvas & Music States
+  // FX & AI States
+  String _selectedGlitch = 'Off'; // Off, RGB Split, VHS Glitch, Cyberpunk
   String? _bgMusicPath;
   String _selectedRatio = 'Original';
   String _selectedFilter = 'Normal';
@@ -63,6 +64,28 @@ class _TrimmerViewState extends State<TrimmerView> {
     ]),
   };
 
+  final Map<String, ColorFilter?> _glitchMatrices = {
+    'Off': null,
+    'RGB Split': const ColorFilter.matrix([
+      1.5, 0, 0, 0, 30,
+      0, 0.8, 0, 0, -20,
+      0, 0, 1.6, 0, 40,
+      0, 0, 0, 1, 0,
+    ]),
+    'VHS Glitch': const ColorFilter.matrix([
+      0.9, 0.2, 0, 0, 10,
+      0, 1.2, 0.1, 0, 5,
+      0.2, 0, 1.1, 0, -15,
+      0, 0, 0, 1, 0,
+    ]),
+    'Cyberpunk': const ColorFilter.matrix([
+      1.8, 0, 0.2, 0, 40,
+      0, 0.7, 0.9, 0, -30,
+      0.4, 0, 1.9, 0, 50,
+      0, 0, 0, 1, 0,
+    ]),
+  };
+
   final ColorFilter _hdrFilterMatrix = const ColorFilter.matrix([
     1.35, 0, 0, 0, 8,
     0, 1.35, 0, 0, 8,
@@ -74,6 +97,27 @@ class _TrimmerViewState extends State<TrimmerView> {
   void initState() {
     super.initState();
     _speech = stt.SpeechToText();
+  }
+
+  void _toggleGlitch() {
+    setState(() {
+      if (_selectedGlitch == 'Off') {
+        _selectedGlitch = 'RGB Split';
+      } else if (_selectedGlitch == 'RGB Split') {
+        _selectedGlitch = 'VHS Glitch';
+      } else if (_selectedGlitch == 'VHS Glitch') {
+        _selectedGlitch = 'Cyberpunk';
+      } else {
+        _selectedGlitch = 'Off';
+      }
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        backgroundColor: const Color(0xFF7C4DFF),
+        content: Text("⚡ Glitch FX: $_selectedGlitch", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+      ),
+    );
   }
 
   void _showAddTextDialog() {
@@ -277,6 +321,15 @@ class _TrimmerViewState extends State<TrimmerView> {
       videoFilter += ",scale=1080:1080:force_original_aspect_ratio=decrease,pad=1080:1080:(ow-iw)/2:(oh-ih)/2:black";
     }
 
+    // Glitch FX via FFmpeg
+    if (_selectedGlitch == 'RGB Split') {
+      videoFilter += ",rgbashift=rh=8:bv=-8";
+    } else if (_selectedGlitch == 'VHS Glitch') {
+      videoFilter += ",noise=alls=20:allf=t+u,hue=s=1.5";
+    } else if (_selectedGlitch == 'Cyberpunk') {
+      videoFilter += ",rgbashift=rh=15:gh=-5:bv=10,eq=contrast=1.3:saturation=1.5";
+    }
+
     if (_aiHdrEnhance) {
       videoFilter += ",unsharp=5:5:1.2:5:5:0.0,eq=contrast=1.18:brightness=0.03:saturation=1.3";
     }
@@ -297,7 +350,6 @@ class _TrimmerViewState extends State<TrimmerView> {
       videoFilter += ",curves=vintage";
     }
 
-    // Text Draw Filter if user added text
     if (_customText.isNotEmpty) {
       String cleanText = _customText.replaceAll("'", "");
       videoFilter += ",drawtext=text='$cleanText':fontcolor=white:fontsize=48:box=1:boxcolor=black@0.6:boxborderw=8:x=(w-text_w)/2:y=h*0.25";
@@ -383,25 +435,29 @@ class _TrimmerViewState extends State<TrimmerView> {
                         color: _bgCutoutMode != 'Off' ? const Color(0xFF1E1E2C) : Colors.black,
                         child: Transform.scale(
                           scaleX: _isMirrorH ? -1.0 : 1.0,
-                          child: _aiHdrEnhance
+                          child: _glitchMatrices[_selectedGlitch] != null
                               ? ColorFiltered(
-                                  colorFilter: _hdrFilterMatrix,
-                                  child: _filters[_selectedFilter] != null
+                                  colorFilter: _glitchMatrices[_selectedGlitch]!,
+                                  child: VideoViewer(trimmer: widget._trimmer),
+                                )
+                              : (_aiHdrEnhance
+                                  ? ColorFiltered(
+                                      colorFilter: _hdrFilterMatrix,
+                                      child: _filters[_selectedFilter] != null
+                                          ? ColorFiltered(
+                                              colorFilter: _filters[_selectedFilter]!,
+                                              child: VideoViewer(trimmer: widget._trimmer),
+                                            )
+                                          : VideoViewer(trimmer: widget._trimmer),
+                                    )
+                                  : (_filters[_selectedFilter] != null
                                       ? ColorFiltered(
                                           colorFilter: _filters[_selectedFilter]!,
                                           child: VideoViewer(trimmer: widget._trimmer),
                                         )
-                                      : VideoViewer(trimmer: widget._trimmer),
-                                )
-                              : (_filters[_selectedFilter] != null
-                                  ? ColorFiltered(
-                                      colorFilter: _filters[_selectedFilter]!,
-                                      child: VideoViewer(trimmer: widget._trimmer),
-                                    )
-                                  : VideoViewer(trimmer: widget._trimmer)),
+                                      : VideoViewer(trimmer: widget._trimmer))),
                         ),
                       ),
-                      // Movable Custom Text Overlay
                       if (_customText.isNotEmpty)
                         Positioned(
                           top: 60 + _textPosition.dy,
@@ -490,10 +546,16 @@ class _TrimmerViewState extends State<TrimmerView> {
                           children: [
                             const SizedBox(width: 8),
                             _buildToolOption(
+                              "Glitch FX",
+                              _selectedGlitch,
+                              _toggleGlitch,
+                              isAi: true,
+                            ),
+                            const SizedBox(width: 8),
+                            _buildToolOption(
                               "Text Overlay",
                               _customText.isEmpty ? "+ Add" : "Edit",
                               _showAddTextDialog,
-                              isAi: true,
                             ),
                             const SizedBox(width: 8),
                             _buildToolOption(
