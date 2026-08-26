@@ -21,12 +21,14 @@ class _TrimmerViewState extends State<TrimmerView> {
   bool _isExporting = false;
   bool _isGeneratingCaptions = false;
   
-  // AI Feature States
+  // AI & Effects States
   String _selectedFilter = 'Normal';
   String _bgCutoutMode = 'Off'; 
   String _aiVelocityMode = 'Off'; 
-  String _aiVoiceMode = 'Off'; // Off, Studio Denoise, Vocal Isolate
+  String _aiVoiceMode = 'Off';
   bool _aiHdrEnhance = false;
+  bool _isReverse = false;
+  bool _isMirrorH = false;
   double _speed = 1.0;
   String _autoCaptionText = "";
   late stt.SpeechToText _speech;
@@ -170,6 +172,36 @@ class _TrimmerViewState extends State<TrimmerView> {
     );
   }
 
+  void _toggleReverse() {
+    setState(() {
+      _isReverse = !_isReverse;
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        backgroundColor: _isReverse ? const Color(0xFF00E5FF) : Colors.grey,
+        content: Text(
+          _isReverse ? "⏪ AI Video Reverse ON" : "Video Reverse OFF",
+          style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
+        ),
+      ),
+    );
+  }
+
+  void _toggleMirror() {
+    setState(() {
+      _isMirrorH = !_isMirrorH;
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        backgroundColor: _isMirrorH ? const Color(0xFF00E5FF) : Colors.grey,
+        content: Text(
+          _isMirrorH ? "🪞 Mirror Flip Horizontal ON" : "Mirror OFF",
+          style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
+        ),
+      ),
+    );
+  }
+
   Future<void> _exportVideo() async {
     setState(() => _isExporting = true);
 
@@ -183,8 +215,16 @@ class _TrimmerViewState extends State<TrimmerView> {
     String setpts = (1.0 / _speed).toStringAsFixed(2);
     String atempo = _speed < 0.5 ? "0.5" : _speed.toStringAsFixed(2);
 
-    // Video Filters
+    // Video Filter Setup
     String videoFilter = "setpts=${setpts}*PTS";
+
+    if (_isMirrorH) {
+      videoFilter += ",hflip";
+    }
+
+    if (_isReverse) {
+      videoFilter += ",reverse";
+    }
 
     if (_aiHdrEnhance) {
       videoFilter += ",unsharp=5:5:1.2:5:5:0.0,eq=contrast=1.18:brightness=0.03:saturation=1.3";
@@ -206,8 +246,12 @@ class _TrimmerViewState extends State<TrimmerView> {
       videoFilter += ",curves=vintage";
     }
 
-    // AI Audio Filters (FFmpeg FFT Denoise + Vocal Pass Isolator)
+    // Audio Filters
     String audioFilter = "atempo=$atempo";
+    if (_isReverse) {
+      audioFilter += ",areverse";
+    }
+
     if (_aiVoiceMode == 'Denoise') {
       audioFilter += ",afftdn=nf=-25,anlmdn=s=3";
     } else if (_aiVoiceMode == 'Voice Isolate') {
@@ -272,22 +316,25 @@ class _TrimmerViewState extends State<TrimmerView> {
                 children: [
                   Container(
                     color: _bgCutoutMode != 'Off' ? const Color(0xFF1E1E2C) : Colors.transparent,
-                    child: _aiHdrEnhance
-                        ? ColorFiltered(
-                            colorFilter: _hdrFilterMatrix,
-                            child: _filters[_selectedFilter] != null
-                                ? ColorFiltered(
-                                    colorFilter: _filters[_selectedFilter]!,
-                                    child: VideoViewer(trimmer: widget._trimmer),
-                                  )
-                                : VideoViewer(trimmer: widget._trimmer),
-                          )
-                        : (_filters[_selectedFilter] != null
-                            ? ColorFiltered(
-                                colorFilter: _filters[_selectedFilter]!,
-                                child: VideoViewer(trimmer: widget._trimmer),
-                              )
-                            : VideoViewer(trimmer: widget._trimmer)),
+                    child: Transform.scale(
+                      scaleX: _isMirrorH ? -1.0 : 1.0,
+                      child: _aiHdrEnhance
+                          ? ColorFiltered(
+                              colorFilter: _hdrFilterMatrix,
+                              child: _filters[_selectedFilter] != null
+                                  ? ColorFiltered(
+                                      colorFilter: _filters[_selectedFilter]!,
+                                      child: VideoViewer(trimmer: widget._trimmer),
+                                    )
+                                  : VideoViewer(trimmer: widget._trimmer),
+                            )
+                          : (_filters[_selectedFilter] != null
+                              ? ColorFiltered(
+                                  colorFilter: _filters[_selectedFilter]!,
+                                  child: VideoViewer(trimmer: widget._trimmer),
+                                )
+                              : VideoViewer(trimmer: widget._trimmer)),
+                    ),
                   ),
                   if (_autoCaptionText.isNotEmpty)
                     Positioned(
@@ -346,7 +393,19 @@ class _TrimmerViewState extends State<TrimmerView> {
                           children: [
                             const SizedBox(width: 8),
                             _buildToolOption(
-                              "AI Voice Isolator",
+                              "Reverse",
+                              _isReverse ? "ON" : "OFF",
+                              _toggleReverse,
+                            ),
+                            const SizedBox(width: 8),
+                            _buildToolOption(
+                              "Mirror",
+                              _isMirrorH ? "FLIP" : "OFF",
+                              _toggleMirror,
+                            ),
+                            const SizedBox(width: 8),
+                            _buildToolOption(
+                              "AI Audio",
                               _aiVoiceMode,
                               _toggleVoiceClean,
                               isAi: true,
