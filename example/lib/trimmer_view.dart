@@ -28,12 +28,17 @@ class _TrimmerViewState extends State<TrimmerView> {
   String _customText = "";
   Offset _textPosition = const Offset(0, 0);
 
+  // Keyframe Transform States (Diamond ➕ Control)
+  double _videoScale = 1.0;
+  final List<double> _keyframes = [];
+  bool _isKeyframeActive = false;
+
   // Masking Feature States
   String _maskType = 'None';
   double _maskAngle = 35.0;
   bool _showMaskControl = false;
 
-  // Trending Effects States (Screenshot 3 - Tendencias)
+  // Trending Effects States
   String _activeEffect = 'None';
 
   final Map<String, ColorFilter?> _trendingEffects = {
@@ -80,38 +85,10 @@ class _TrimmerViewState extends State<TrimmerView> {
   String _selectedMusicTitle = "";
   String? _bgMusicPath;
   String _selectedResolution = "1080P";
-  String _selectedFilter = 'Normal';
-  String _bgCutoutMode = 'Off'; 
-  String _aiVelocityMode = 'Off'; 
   String _aiVoiceMode = 'Off';
-  bool _aiHdrEnhance = false;
-  bool _isReverse = false;
-  bool _isMirrorH = false;
   double _speed = 1.0;
   String _autoCaptionText = "";
   late stt.SpeechToText _speech;
-
-  final Map<String, ColorFilter?> _filters = {
-    'Normal': null,
-    'Cinematic': const ColorFilter.matrix([
-      1.2, 0, 0, 0, -10,
-      0, 1.1, 0, 0, -5,
-      0, 0, 1.3, 0, 10,
-      0, 0, 0, 1, 0,
-    ]),
-    'B&W': const ColorFilter.matrix([
-      0.33, 0.59, 0.11, 0, 0,
-      0.33, 0.59, 0.11, 0, 0,
-      0.33, 0.59, 0.11, 0, 0,
-      0, 0, 0, 1, 0,
-    ]),
-    'Warm': const ColorFilter.matrix([
-      1.3, 0, 0, 0, 20,
-      0, 1.1, 0, 0, 10,
-      0, 0, 0.8, 0, -10,
-      0, 0, 0, 1, 0,
-    ]),
-  };
 
   @override
   void initState() {
@@ -119,7 +96,30 @@ class _TrimmerViewState extends State<TrimmerView> {
     _speech = stt.SpeechToText();
   }
 
-  // ---------------- TENDENCIAS / TRENDING EFFECTS SHEET (Screenshot 3) ----------------
+  void _addOrRemoveKeyframe() {
+    setState(() {
+      if (_isKeyframeActive) {
+        _keyframes.clear();
+        _videoScale = 1.0;
+        _isKeyframeActive = false;
+      } else {
+        _keyframes.add(_startValue);
+        _videoScale = 1.25;
+        _isKeyframeActive = true;
+      }
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        backgroundColor: const Color(0xFF00E5FF),
+        content: Text(
+          _isKeyframeActive ? "💎 Keyframe Zoom Set at Current Time!" : "Keyframe Reset",
+          style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
+        ),
+      ),
+    );
+  }
+
   void _openTrendingEffectsModal() {
     showModalBottomSheet(
       context: context,
@@ -127,61 +127,51 @@ class _TrimmerViewState extends State<TrimmerView> {
       backgroundColor: const Color(0xFF141417),
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
       builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setModalState) {
-            return SizedBox(
-              height: MediaQuery.of(context).size.height * 0.65,
-              child: Column(
-                children: [
-                  // Top Category Tabs: Tendencias, Básico, Bling, Fiesta
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        return SizedBox(
+          height: MediaQuery.of(context).size.height * 0.65,
+          child: Column(
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Row(
                       children: [
-                        const Row(
-                          children: [
-                            Icon(Icons.block, color: Colors.white54, size: 20),
-                            SizedBox(width: 14),
-                            Text("Tendencias", style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold)),
-                            SizedBox(width: 16),
-                            Text("Básico", style: TextStyle(color: Colors.white54, fontSize: 14)),
-                            SizedBox(width: 16),
-                            Text("Bling", style: TextStyle(color: Colors.white54, fontSize: 14)),
-                            SizedBox(width: 16),
-                            Text("Fiesta", style: TextStyle(color: Colors.white54, fontSize: 14)),
-                          ],
-                        ),
-                        GestureDetector(
-                          onTap: () => Navigator.pop(context),
-                          child: const Icon(Icons.check, color: Color(0xFF00E5FF), size: 24),
-                        ),
+                        Icon(Icons.block, color: Colors.white54, size: 20),
+                        SizedBox(width: 14),
+                        Text("Tendencias", style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold)),
+                        SizedBox(width: 16),
+                        Text("Básico", style: TextStyle(color: Colors.white54, fontSize: 14)),
                       ],
                     ),
-                  ),
-                  const Divider(color: Colors.white10, height: 1),
-                  // Grid of 3 columns with Effect Cards
-                  Expanded(
-                    child: GridView.count(
-                      padding: const EdgeInsets.all(14),
-                      crossAxisCount: 3,
-                      crossAxisSpacing: 10,
-                      mainAxisSpacing: 12,
-                      childAspectRatio: 0.82,
-                      children: [
-                        _buildEffectCard("Halo Desenfoque", const Color(0xFF3949AB), Icons.blur_on),
-                        _buildEffectCard("Bordes Brillantes", const Color(0xFF8E24AA), Icons.auto_awesome),
-                        _buildEffectCard("JVC Vintage", const Color(0xFF546E7A), Icons.videocam_outlined),
-                        _buildEffectCard("Cámara en Mov.", const Color(0xFF43A047), Icons.vibration),
-                        _buildEffectCard("Baile Mariposa", const Color(0xFFE53935), Icons.flutter_dash),
-                        _buildEffectCard("Enfoque Flash", const Color(0xFFFB8C00), Icons.flash_on),
-                      ],
+                    GestureDetector(
+                      onTap: () => Navigator.pop(context),
+                      child: const Icon(Icons.check, color: Color(0xFF00E5FF), size: 24),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            );
-          },
+              const Divider(color: Colors.white10, height: 1),
+              Expanded(
+                child: GridView.count(
+                  padding: const EdgeInsets.all(14),
+                  crossAxisCount: 3,
+                  crossAxisSpacing: 10,
+                  mainAxisSpacing: 12,
+                  childAspectRatio: 0.82,
+                  children: [
+                    _buildEffectCard("Halo Desenfoque", const Color(0xFF3949AB), Icons.blur_on),
+                    _buildEffectCard("Bordes Brillantes", const Color(0xFF8E24AA), Icons.auto_awesome),
+                    _buildEffectCard("JVC Vintage", const Color(0xFF546E7A), Icons.videocam_outlined),
+                    _buildEffectCard("Cámara en Mov.", const Color(0xFF43A047), Icons.vibration),
+                    _buildEffectCard("Baile Mariposa", const Color(0xFFE53935), Icons.flutter_dash),
+                    _buildEffectCard("Enfoque Flash", const Color(0xFFFB8C00), Icons.flash_on),
+                  ],
+                ),
+              ),
+            ],
+          ),
         );
       },
     );
@@ -191,16 +181,8 @@ class _TrimmerViewState extends State<TrimmerView> {
     bool isSelected = _activeEffect == title;
     return GestureDetector(
       onTap: () {
-        setState(() {
-          _activeEffect = isSelected ? 'None' : title;
-        });
+        setState(() => _activeEffect = isSelected ? 'None' : title);
         Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            backgroundColor: const Color(0xFF00E5FF),
-            content: Text("✨ Effect: $_activeEffect", style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
-          ),
-        );
       },
       child: Column(
         children: [
@@ -211,16 +193,7 @@ class _TrimmerViewState extends State<TrimmerView> {
                 borderRadius: BorderRadius.circular(10),
                 border: Border.all(color: isSelected ? const Color(0xFF00E5FF) : Colors.transparent, width: 2),
               ),
-              child: Stack(
-                children: [
-                  Center(child: Icon(icon, color: Colors.white70, size: 30)),
-                  Positioned(
-                    top: 6,
-                    right: 6,
-                    child: Icon(isSelected ? Icons.check_circle : Icons.arrow_downward_rounded, size: 14, color: Colors.white70),
-                  ),
-                ],
-              ),
+              child: Center(child: Icon(icon, color: Colors.white70, size: 30)),
             ),
           ),
           const SizedBox(height: 4),
@@ -272,7 +245,6 @@ class _TrimmerViewState extends State<TrimmerView> {
                   children: [
                     _buildMusicTile("MaskOff Freestyle", "Müd & Seventeenbb", "01:00", const Color(0xFFE53935)),
                     _buildMusicTile("Modern city pop, fashion, Vlog", "Loquat Music", "03:48", const Color(0xFF1E88E5)),
-                    _buildMusicTile("Drake style / HIPHOP beat(149)", "Burning Man", "02:45", const Color(0xFF8E24AA)),
                   ],
                 ),
               ),
@@ -355,16 +327,14 @@ class _TrimmerViewState extends State<TrimmerView> {
     String atempo = _speed < 0.5 ? "0.5" : _speed.toStringAsFixed(2);
 
     String videoFilter = "setpts=${setpts}*PTS";
-    if (_isMirrorH) videoFilter += ",hflip";
-    if (_isReverse) videoFilter += ",reverse";
 
-    // Dynamic Trending Effects Integration in FFmpeg
+    // Keyframe Zoom Animation Export Logic
+    if (_isKeyframeActive) {
+      videoFilter += ",zoompan=z='min(zoom+0.0015,1.3)':d=125:x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':s=1080x1920";
+    }
+
     if (_activeEffect == 'Halo Desenfoque') {
       videoFilter += ",gblur=sigma=10:steps=2";
-    } else if (_activeEffect == 'Bordes Brillantes') {
-      videoFilter += ",edgedetect=low=0.1:high=0.4";
-    } else if (_activeEffect == 'JVC Vintage') {
-      videoFilter += ",curves=vintage,noise=alls=15:allf=t";
     } else if (_activeEffect == 'Enfoque Flash') {
       videoFilter += ",eq=contrast=1.5:brightness=0.1:saturation=1.4";
     }
@@ -386,7 +356,6 @@ class _TrimmerViewState extends State<TrimmerView> {
           "-ss $startSec -i \"${widget.videoPath}\" -i \"$_bgMusicPath\" -t $durationSec -filter_complex \"[0:v]$videoFilter[v];[0:a]atempo=$atempo,volume=1.0[a1];[1:a]volume=0.4[a2];[a1][a2]amix=inputs=2:duration=first[a]\" -map \"[v]\" -map \"[a]\" -preset ultrafast \"$outPath\"";
     } else {
       String audioFilter = "atempo=$atempo";
-      if (_isReverse) audioFilter += ",areverse";
       command =
           "-ss $startSec -i \"${widget.videoPath}\" -t $durationSec -filter_complex \"[0:v]$videoFilter[v];[0:a]$audioFilter[a]\" -map \"[v]\" -map \"[a]\" -preset ultrafast \"$outPath\"";
     }
@@ -454,7 +423,7 @@ class _TrimmerViewState extends State<TrimmerView> {
       ),
       body: Column(
         children: [
-          // CapCut Video Viewport with Active Trending Effect Filter
+          // CapCut Video Viewport with Transform / Keyframe Scaling
           Expanded(
             child: Center(
               child: Container(
@@ -463,12 +432,15 @@ class _TrimmerViewState extends State<TrimmerView> {
                 child: Stack(
                   alignment: Alignment.center,
                   children: [
-                    _trendingEffects[_activeEffect] != null
-                        ? ColorFiltered(
-                            colorFilter: _trendingEffects[_activeEffect]!,
-                            child: VideoViewer(trimmer: widget._trimmer),
-                          )
-                        : VideoViewer(trimmer: widget._trimmer),
+                    Transform.scale(
+                      scale: _videoScale,
+                      child: _trendingEffects[_activeEffect] != null
+                          ? ColorFiltered(
+                              colorFilter: _trendingEffects[_activeEffect]!,
+                              child: VideoViewer(trimmer: widget._trimmer),
+                            )
+                          : VideoViewer(trimmer: widget._trimmer),
+                    ),
                     if (_maskType != 'None')
                       Transform.rotate(
                         angle: _maskAngle * (math.pi / 180),
@@ -546,13 +518,28 @@ class _TrimmerViewState extends State<TrimmerView> {
                     ),
                   ],
                 ),
-                const Row(
+                Row(
                   children: [
-                    Icon(Icons.diamond_outlined, color: Colors.white70, size: 18),
-                    SizedBox(width: 14),
-                    Icon(Icons.undo, color: Colors.white70, size: 18),
-                    SizedBox(width: 14),
-                    Icon(Icons.redo, color: Colors.white70, size: 18),
+                    // CapCut Keyframe Diamond Button
+                    GestureDetector(
+                      onTap: _addOrRemoveKeyframe,
+                      child: Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: BoxDecoration(
+                          color: _isKeyframeActive ? const Color(0xFF00E5FF) : Colors.transparent,
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(
+                          Icons.diamond_outlined,
+                          color: _isKeyframeActive ? Colors.black : Colors.white70,
+                          size: 20,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 14),
+                    const Icon(Icons.undo, color: Colors.white70, size: 18),
+                    const SizedBox(width: 14),
+                    const Icon(Icons.redo, color: Colors.white70, size: 18),
                   ],
                 ),
               ],
@@ -630,7 +617,6 @@ class _TrimmerViewState extends State<TrimmerView> {
               ],
             ),
           ),
-          // Bottom Toolbar (Effects button opens Screenshot 3 Tendencias Modal)
           Container(
             color: const Color(0xFF101012),
             height: 64,
