@@ -28,11 +28,53 @@ class _TrimmerViewState extends State<TrimmerView> {
   String _customText = "";
   Offset _textPosition = const Offset(0, 0);
 
-  // Masking Feature States (Screenshot 1 Masking in CapCut)
-  String _maskType = 'None'; // None, Linear, Diagonal, Circle, Rectangle
-  double _maskAngle = 35.0; // 35 deg rotation as seen in CapCut mask screenshot
-  double _maskFeather = 0.0;
+  // Masking Feature States
+  String _maskType = 'None';
+  double _maskAngle = 35.0;
   bool _showMaskControl = false;
+
+  // Trending Effects States (Screenshot 3 - Tendencias)
+  String _activeEffect = 'None';
+
+  final Map<String, ColorFilter?> _trendingEffects = {
+    'None': null,
+    'Halo Desenfoque': const ColorFilter.matrix([
+      1.1, 0.2, 0, 0, 15,
+      0.1, 1.1, 0, 0, 15,
+      0, 0.1, 1.2, 0, 20,
+      0, 0, 0, 1, 0,
+    ]),
+    'Bordes Brillantes': const ColorFilter.matrix([
+      1.6, 0, 0.2, 0, 30,
+      0, 1.4, 0.2, 0, 30,
+      0.2, 0, 1.8, 0, 45,
+      0, 0, 0, 1, 0,
+    ]),
+    'JVC Vintage': const ColorFilter.matrix([
+      0.9, 0.1, 0.1, 0, -10,
+      0.1, 1.0, 0.1, 0, 0,
+      0.1, 0.1, 0.7, 0, -20,
+      0, 0, 0, 1, 0,
+    ]),
+    'Cámara en Mov.': const ColorFilter.matrix([
+      1.2, 0, 0, 0, 10,
+      0, 1.2, 0, 0, 10,
+      0, 0, 1.2, 0, 10,
+      0, 0, 0, 1, 0,
+    ]),
+    'Baile Mariposa': const ColorFilter.matrix([
+      1.4, 0.1, 0.3, 0, 25,
+      0.1, 1.1, 0.4, 0, -10,
+      0.3, 0.1, 1.6, 0, 35,
+      0, 0, 0, 1, 0,
+    ]),
+    'Enfoque Flash': const ColorFilter.matrix([
+      1.5, 0, 0, 0, 40,
+      0, 1.5, 0, 0, 40,
+      0, 0, 1.5, 0, 40,
+      0, 0, 0, 1, 0,
+    ]),
+  };
 
   // FX, Audio & AI States
   String _selectedMusicTitle = "";
@@ -77,6 +119,117 @@ class _TrimmerViewState extends State<TrimmerView> {
     _speech = stt.SpeechToText();
   }
 
+  // ---------------- TENDENCIAS / TRENDING EFFECTS SHEET (Screenshot 3) ----------------
+  void _openTrendingEffectsModal() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: const Color(0xFF141417),
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return SizedBox(
+              height: MediaQuery.of(context).size.height * 0.65,
+              child: Column(
+                children: [
+                  // Top Category Tabs: Tendencias, Básico, Bling, Fiesta
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Row(
+                          children: [
+                            Icon(Icons.block, color: Colors.white54, size: 20),
+                            SizedBox(width: 14),
+                            Text("Tendencias", style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold)),
+                            SizedBox(width: 16),
+                            Text("Básico", style: TextStyle(color: Colors.white54, fontSize: 14)),
+                            SizedBox(width: 16),
+                            Text("Bling", style: TextStyle(color: Colors.white54, fontSize: 14)),
+                            SizedBox(width: 16),
+                            Text("Fiesta", style: TextStyle(color: Colors.white54, fontSize: 14)),
+                          ],
+                        ),
+                        GestureDetector(
+                          onTap: () => Navigator.pop(context),
+                          child: const Icon(Icons.check, color: Color(0xFF00E5FF), size: 24),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Divider(color: Colors.white10, height: 1),
+                  // Grid of 3 columns with Effect Cards
+                  Expanded(
+                    child: GridView.count(
+                      padding: const EdgeInsets.all(14),
+                      crossAxisCount: 3,
+                      crossAxisSpacing: 10,
+                      mainAxisSpacing: 12,
+                      childAspectRatio: 0.82,
+                      children: [
+                        _buildEffectCard("Halo Desenfoque", const Color(0xFF3949AB), Icons.blur_on),
+                        _buildEffectCard("Bordes Brillantes", const Color(0xFF8E24AA), Icons.auto_awesome),
+                        _buildEffectCard("JVC Vintage", const Color(0xFF546E7A), Icons.videocam_outlined),
+                        _buildEffectCard("Cámara en Mov.", const Color(0xFF43A047), Icons.vibration),
+                        _buildEffectCard("Baile Mariposa", const Color(0xFFE53935), Icons.flutter_dash),
+                        _buildEffectCard("Enfoque Flash", const Color(0xFFFB8C00), Icons.flash_on),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildEffectCard(String title, Color color, IconData icon) {
+    bool isSelected = _activeEffect == title;
+    return GestureDetector(
+      onTap: () {
+        setState(() {
+          _activeEffect = isSelected ? 'None' : title;
+        });
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: const Color(0xFF00E5FF),
+            content: Text("✨ Effect: $_activeEffect", style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+          ),
+        );
+      },
+      child: Column(
+        children: [
+          Expanded(
+            child: Container(
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.85),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: isSelected ? const Color(0xFF00E5FF) : Colors.transparent, width: 2),
+              ),
+              child: Stack(
+                children: [
+                  Center(child: Icon(icon, color: Colors.white70, size: 30)),
+                  Positioned(
+                    top: 6,
+                    right: 6,
+                    child: Icon(isSelected ? Icons.check_circle : Icons.arrow_downward_rounded, size: 14, color: Colors.white70),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(title, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white, fontSize: 10)),
+        ],
+      ),
+    );
+  }
+
   void _toggleMaskType() {
     setState(() {
       _showMaskControl = true;
@@ -86,20 +239,11 @@ class _TrimmerViewState extends State<TrimmerView> {
         _maskType = 'Linear';
       } else if (_maskType == 'Linear') {
         _maskType = 'Circle';
-      } else if (_maskType == 'Circle') {
-        _maskType = 'Rectangle';
       } else {
         _maskType = 'None';
         _showMaskControl = false;
       }
     });
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        backgroundColor: const Color(0xFF00E5FF),
-        content: Text("🎭 Mask Mode: $_maskType", style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
-      ),
-    );
   }
 
   void _openAddSoundModal() {
@@ -107,9 +251,7 @@ class _TrimmerViewState extends State<TrimmerView> {
       context: context,
       isScrollControlled: true,
       backgroundColor: const Color(0xFF141417),
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
       builder: (context) {
         return SizedBox(
           height: MediaQuery.of(context).size.height * 0.88,
@@ -119,73 +261,19 @@ class _TrimmerViewState extends State<TrimmerView> {
                 padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
                 child: Row(
                   children: [
-                    GestureDetector(
-                      onTap: () => Navigator.pop(context),
-                      child: const Icon(Icons.close, color: Colors.white, size: 24),
-                    ),
-                    const Expanded(
-                      child: Center(
-                        child: Text("Add sound", style: TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.bold)),
-                      ),
-                    ),
+                    GestureDetector(onTap: () => Navigator.pop(context), child: const Icon(Icons.close, color: Colors.white, size: 24)),
+                    const Expanded(child: Center(child: Text("Add sound", style: TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.bold)))),
                     const SizedBox(width: 24),
                   ],
                 ),
               ),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-                child: Container(
-                  height: 40,
-                  decoration: BoxDecoration(color: const Color(0xFF222228), borderRadius: BorderRadius.circular(20)),
-                  child: const Row(
-                    children: [
-                      SizedBox(width: 12),
-                      Icon(Icons.search, color: Colors.white38, size: 20),
-                      SizedBox(width: 8),
-                      Expanded(
-                        child: TextField(
-                          style: TextStyle(color: Colors.white, fontSize: 14),
-                          decoration: InputDecoration(hintText: "Search songs or artists", hintStyle: TextStyle(color: Colors.white38, fontSize: 13), border: InputBorder.none),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
               Expanded(
-                child: SingleChildScrollView(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Padding(
-                        padding: const EdgeInsets.all(16.0),
-                        child: GridView.count(
-                          shrinkWrap: true,
-                          physics: const NeverScrollableScrollPhysics(),
-                          crossAxisCount: 3,
-                          mainAxisSpacing: 10,
-                          crossAxisSpacing: 10,
-                          childAspectRatio: 1.0,
-                          children: [
-                            _buildCategoryCard("VLOG", const [Color(0xFF8E9EAB), Color(0xFFEEF2F3)]),
-                            _buildCategoryCard("🌱 Spring", const [Color(0xFF56AB2F), Color(0xFFA8E063)]),
-                            _buildCategoryCard("LOVE", const [Color(0xFFFF416C), Color(0xFFFF4B2B)]),
-                            _buildCategoryCard("TRAVEL", const [Color(0xFF2193B0), Color(0xFF6DD5ED)]),
-                            _buildCategoryCard("POP", const [Color(0xFF4A00E0), Color(0xFF8E2DE2)]),
-                            _buildCategoryCard("SALE", const [Color(0xFFF12711), Color(0xFFF5AF19)]),
-                          ],
-                        ),
-                      ),
-                      const Divider(color: Colors.white12, thickness: 1),
-                      const Padding(
-                        padding: EdgeInsets.fromLTRB(16, 12, 16, 8),
-                        child: Text("Recommended", style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
-                      ),
-                      _buildMusicTile("MaskOff Freestyle", "Müd & Seventeenbb", "01:00", const Color(0xFFE53935)),
-                      _buildMusicTile("Modern city pop, fashion, Vlog", "Loquat Music", "03:48", const Color(0xFF1E88E5)),
-                      _buildMusicTile("Drake style / HIPHOP beat(149)", "Burning Man", "02:45", const Color(0xFF8E24AA)),
-                    ],
-                  ),
+                child: ListView(
+                  children: [
+                    _buildMusicTile("MaskOff Freestyle", "Müd & Seventeenbb", "01:00", const Color(0xFFE53935)),
+                    _buildMusicTile("Modern city pop, fashion, Vlog", "Loquat Music", "03:48", const Color(0xFF1E88E5)),
+                    _buildMusicTile("Drake style / HIPHOP beat(149)", "Burning Man", "02:45", const Color(0xFF8E24AA)),
+                  ],
                 ),
               ),
             ],
@@ -195,27 +283,10 @@ class _TrimmerViewState extends State<TrimmerView> {
     );
   }
 
-  Widget _buildCategoryCard(String title, List<Color> colors) {
-    return Container(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(colors: colors, begin: Alignment.topLeft, end: Alignment.bottomRight),
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: Center(
-        child: Text(title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 13)),
-      ),
-    );
-  }
-
   Widget _buildMusicTile(String title, String artist, String duration, Color coverColor) {
     return ListTile(
-      leading: Container(
-        width: 44,
-        height: 44,
-        decoration: BoxDecoration(color: coverColor, borderRadius: BorderRadius.circular(8)),
-        child: const Icon(Icons.music_note, color: Colors.white, size: 24),
-      ),
-      title: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold)),
+      leading: Container(width: 44, height: 44, decoration: BoxDecoration(color: coverColor, borderRadius: BorderRadius.circular(8)), child: const Icon(Icons.music_note, color: Colors.white)),
+      title: Text(title, style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold)),
       subtitle: Text("$artist • $duration", style: const TextStyle(color: Colors.white54, fontSize: 11)),
       trailing: GestureDetector(
         onTap: () {
@@ -287,15 +358,21 @@ class _TrimmerViewState extends State<TrimmerView> {
     if (_isMirrorH) videoFilter += ",hflip";
     if (_isReverse) videoFilter += ",reverse";
 
-    // CapCut Mask Export Integration
+    // Dynamic Trending Effects Integration in FFmpeg
+    if (_activeEffect == 'Halo Desenfoque') {
+      videoFilter += ",gblur=sigma=10:steps=2";
+    } else if (_activeEffect == 'Bordes Brillantes') {
+      videoFilter += ",edgedetect=low=0.1:high=0.4";
+    } else if (_activeEffect == 'JVC Vintage') {
+      videoFilter += ",curves=vintage,noise=alls=15:allf=t";
+    } else if (_activeEffect == 'Enfoque Flash') {
+      videoFilter += ",eq=contrast=1.5:brightness=0.1:saturation=1.4";
+    }
+
     if (_maskType == 'Circle') {
       videoFilter += ",geq=r='r(X,Y)':a='if(lte(hypot(X-W/2,Y-H/2),H/2.5),255,0)'";
     } else if (_maskType == 'Diagonal' || _maskType == 'Linear') {
       videoFilter += ",geq=r='r(X,Y)':a='if(lte(Y - X*tan(${_maskAngle * math.pi / 180}), H*0.2),255,0)'";
-    }
-
-    if (_aiHdrEnhance) {
-      videoFilter += ",unsharp=5:5:1.2:5:5:0.0,eq=contrast=1.18:brightness=0.03:saturation=1.3";
     }
 
     if (_customText.isNotEmpty) {
@@ -348,10 +425,7 @@ class _TrimmerViewState extends State<TrimmerView> {
           Container(
             margin: const EdgeInsets.symmetric(vertical: 11),
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
-            decoration: BoxDecoration(
-              color: const Color(0xFF222228),
-              borderRadius: BorderRadius.circular(6),
-            ),
+            decoration: BoxDecoration(color: const Color(0xFF222228), borderRadius: BorderRadius.circular(6)),
             child: Row(
               children: [
                 Text(_selectedResolution, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white)),
@@ -380,19 +454,21 @@ class _TrimmerViewState extends State<TrimmerView> {
       ),
       body: Column(
         children: [
-          // CapCut Video Viewport with Yellow Masking Lines (Screenshot 1)
+          // CapCut Video Viewport with Active Trending Effect Filter
           Expanded(
             child: Center(
               child: Container(
                 margin: const EdgeInsets.symmetric(horizontal: 16),
-                decoration: BoxDecoration(
-                  border: Border.all(color: const Color(0xFF24D2DB), width: 1.5),
-                ),
+                decoration: BoxDecoration(border: Border.all(color: const Color(0xFF24D2DB), width: 1.5)),
                 child: Stack(
                   alignment: Alignment.center,
                   children: [
-                    VideoViewer(trimmer: widget._trimmer),
-                    // Mask Overlay Visual Lines
+                    _trendingEffects[_activeEffect] != null
+                        ? ColorFiltered(
+                            colorFilter: _trendingEffects[_activeEffect]!,
+                            child: VideoViewer(trimmer: widget._trimmer),
+                          )
+                        : VideoViewer(trimmer: widget._trimmer),
                     if (_maskType != 'None')
                       Transform.rotate(
                         angle: _maskAngle * (math.pi / 180),
@@ -429,45 +505,27 @@ class _TrimmerViewState extends State<TrimmerView> {
               ),
             ),
           ),
-          // CapCut Mask Slider Controls (Position, Rotate, Feather - Screenshot 1)
           if (_showMaskControl)
             Container(
               color: const Color(0xFF141418),
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              child: Column(
+              child: Row(
                 children: [
-                  const Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceAround,
-                    children: [
-                      Text("Position", style: TextStyle(color: Colors.white54, fontSize: 12)),
-                      Text("Rotate", style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold)),
-                      Text("Feather", style: TextStyle(color: Colors.white54, fontSize: 12)),
-                    ],
+                  const Text("Rotate", style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold)),
+                  Expanded(
+                    child: Slider(
+                      value: _maskAngle,
+                      min: -180.0,
+                      max: 180.0,
+                      activeColor: const Color(0xFF00E5FF),
+                      inactiveColor: Colors.white24,
+                      onChanged: (val) => setState(() => _maskAngle = val),
+                    ),
                   ),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Slider(
-                          value: _maskAngle,
-                          min: -180.0,
-                          max: 180.0,
-                          activeColor: const Color(0xFF00E5FF),
-                          inactiveColor: Colors.white24,
-                          onChanged: (val) => setState(() => _maskAngle = val),
-                        ),
-                      ),
-                      Text("${_maskAngle.toInt()}°", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
-                      const SizedBox(width: 8),
-                      IconButton(
-                        icon: const Icon(Icons.refresh, color: Colors.white54, size: 18),
-                        onPressed: () => setState(() => _maskAngle = 0.0),
-                      ),
-                    ],
-                  ),
+                  Text("${_maskAngle.toInt()}°", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
                 ],
               ),
             ),
-          // Center Timecode and Play Controls
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
             child: Row(
@@ -500,7 +558,6 @@ class _TrimmerViewState extends State<TrimmerView> {
               ],
             ),
           ),
-          // Multi-Track Timeline
           Container(
             color: const Color(0xFF16161A),
             padding: const EdgeInsets.symmetric(vertical: 8),
@@ -573,7 +630,7 @@ class _TrimmerViewState extends State<TrimmerView> {
               ],
             ),
           ),
-          // Bottom Toolbar (Including Mask Tool)
+          // Bottom Toolbar (Effects button opens Screenshot 3 Tendencias Modal)
           Container(
             color: const Color(0xFF101012),
             height: 64,
@@ -583,15 +640,11 @@ class _TrimmerViewState extends State<TrimmerView> {
               child: Row(
                 children: [
                   _buildToolbarItem(Icons.arrow_back_ios, "", () => Navigator.pop(context), isArrow: true),
+                  _buildToolbarItem(Icons.auto_awesome_outlined, "Effects", _openTrendingEffectsModal),
                   _buildToolbarItem(Icons.masks_outlined, "Mask", _toggleMaskType),
                   _buildToolbarItem(Icons.splitscreen_rounded, "Split", () {}),
                   _buildToolbarItem(Icons.speed_rounded, "Speed", () {
                     setState(() => _speed = _speed == 1.0 ? 2.0 : (_speed == 2.0 ? 0.5 : 1.0));
-                  }),
-                  _buildToolbarItem(Icons.play_circle_outline, "Animations", () {}),
-                  _buildToolbarItem(Icons.auto_awesome_outlined, "Effects", () {
-                    final keys = _filters.keys.toList();
-                    setState(() => _selectedFilter = keys[(keys.indexOf(_selectedFilter) + 1) % keys.length]);
                   }),
                   _buildToolbarItem(Icons.delete_outline, "Delete", () {}),
                   _buildToolbarItem(Icons.mic_none_outlined, "Enhance voice", () {
