@@ -1,20 +1,18 @@
-name: video_trimmer_example
-description: "Shadow Cut Editor - CapCut Style Flutter Video Editor"
-publish_to: "none"
-version: 1.0.0+1
+name: video_trimmer
+description: A Flutter package for trimming videos.
+version: 3.0.0
+homepage: https://github.com/sbis04/video_trimmer
 
 environment:
   sdk: ">=3.0.0 <4.0.0"
+  flutter: ">=3.0.0"
 
 dependencies:
   flutter:
     sdk: flutter
-  video_trimmer:
-    path: ../
-  file_picker: ^8.0.0
-  ffmpeg_kit_flutter_min_gpl: ^6.0.3
-  google_fonts: ^6.1.0
-  path_provider: ^2.1.2
+  intl: any
+  path: any
+  video_player: any
 
 dev_dependencies:
   flutter_test:
@@ -22,4 +20,10 @@ dev_dependencies:
   flutter_lints: ^3.0.0
 
 flutter:
-  uses-material-design: true
+  plugin:
+    platforms:
+      android:
+        package: com.souvikbiswas.video_trimmer
+        pluginClass: VideoTrimmerPlugin
+      ios:
+        pluginClass: VideoTrimmerPlugin
