@@ -20,8 +20,12 @@ class _TrimmerViewState extends State<TrimmerView> {
   bool _isPlaying = false;
   bool _isExporting = false;
   bool _isGeneratingCaptions = false;
+  
+  // AI Settings
   String _selectedFilter = 'Normal';
-  String _bgCutoutMode = 'Off'; // Off, GreenScreen, BlurBG, BlackBG
+  String _bgCutoutMode = 'Off'; // Off, Chroma, AI Cutout
+  String _aiVelocityMode = 'Off'; // Off, 0.25x Smooth, 0.5x Smooth, Fast 2x
+  bool _aiAudioDenoise = false;
   double _speed = 1.0;
   String _autoCaptionText = "";
   late stt.SpeechToText _speech;
@@ -103,6 +107,39 @@ class _TrimmerViewState extends State<TrimmerView> {
     );
   }
 
+  void _toggleVelocity() {
+    setState(() {
+      if (_aiVelocityMode == 'Off') {
+        _aiVelocityMode = '0.5x Smooth';
+        _speed = 0.5;
+      } else if (_aiVelocityMode == '0.5x Smooth') {
+        _aiVelocityMode = '0.25x Ultra';
+        _speed = 0.25;
+      } else if (_aiVelocityMode == '0.25x Ultra') {
+        _aiVelocityMode = '2.0x Fast';
+        _speed = 2.0;
+      } else {
+        _aiVelocityMode = 'Off';
+        _speed = 1.0;
+      }
+    });
+  }
+
+  void _toggleAudioDenoise() {
+    setState(() {
+      _aiAudioDenoise = !_aiAudioDenoise;
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        backgroundColor: _aiAudioDenoise ? const Color(0xFF00E5FF) : Colors.grey,
+        content: Text(
+          _aiAudioDenoise ? "✨ AI Voice Isolator / Noise Clean ON" : "AI Audio Denoise OFF",
+          style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
+        ),
+      ),
+    );
+  }
+
   Future<void> _exportVideo() async {
     setState(() => _isExporting = true);
 
@@ -114,24 +151,36 @@ class _TrimmerViewState extends State<TrimmerView> {
     if (durationSec <= 0) durationSec = 5.0;
 
     String setpts = (1.0 / _speed).toStringAsFixed(2);
-    String atempo = _speed.toStringAsFixed(2);
+    String atempo = _speed < 0.5 ? "0.5" : _speed.toStringAsFixed(2);
 
-    String filterChain = "setpts=${setpts}*PTS";
+    // AI Video Filter Chain
+    String videoFilter = "setpts=${setpts}*PTS";
+
+    // AI Velocity Frame Interpolation for butter-smooth Slow Motion
+    if (_aiVelocityMode == '0.25x Ultra' || _aiVelocityMode == '0.5x Smooth') {
+      videoFilter += ",minterpolate='mi_mode=mci:mc_mode=aobmc:vsbmc=1:fps=60'";
+    }
 
     if (_bgCutoutMode == 'Chroma') {
-      filterChain += ",colorkey=0x00FF00:0.3:0.1";
+      videoFilter += ",colorkey=0x00FF00:0.3:0.1";
     } else if (_bgCutoutMode == 'AI Cutout') {
-      filterChain += ",boxblur=10:1[bg];[0:v]crop=iw:ih[fg];[bg][fg]overlay=0:0";
+      videoFilter += ",boxblur=10:1[bg];[0:v]crop=iw:ih[fg];[bg][fg]overlay=0:0";
     }
 
     if (_selectedFilter == 'B&W') {
-      filterChain += ",hue=s=0";
+      videoFilter += ",hue=s=0";
     } else if (_selectedFilter == 'Warm') {
-      filterChain += ",curves=vintage";
+      videoFilter += ",curves=vintage";
+    }
+
+    // AI Audio Noise Cleaner Filter
+    String audioFilter = "atempo=$atempo";
+    if (_aiAudioDenoise) {
+      audioFilter += ",afftdn=nf=-25,highpass=f=200,lowpass=f=3000";
     }
 
     String command =
-        "-ss $startSec -i \"${widget.videoPath}\" -t $durationSec -filter_complex \"[0:v]$filterChain[v];[0:a]atempo=$atempo[a]\" -map \"[v]\" -map \"[a]\" -preset ultrafast \"$outPath\"";
+        "-ss $startSec -i \"${widget.videoPath}\" -t $durationSec -filter_complex \"[0:v]$videoFilter[v];[0:a]$audioFilter[a]\" -map \"[v]\" -map \"[a]\" -preset ultrafast \"$outPath\"";
 
     await FFmpegKit.executeAsync(command, (session) async {
       final returnCode = await session.getReturnCode();
@@ -161,7 +210,7 @@ class _TrimmerViewState extends State<TrimmerView> {
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        title: const Text("Shadow Cut Pro", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+        title: const Text("Shadow Cut Pro AI", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
         actions: [
           Padding(
             padding: const EdgeInsets.only(right: 12.0),
@@ -252,6 +301,20 @@ class _TrimmerViewState extends State<TrimmerView> {
                           children: [
                             const SizedBox(width: 8),
                             _buildToolOption(
+                              "AI Velocity",
+                              _aiVelocityMode,
+                              _toggleVelocity,
+                              isAi: true,
+                            ),
+                            const SizedBox(width: 8),
+                            _buildToolOption(
+                              "AI Audio Clean",
+                              _aiAudioDenoise ? "ON" : "OFF",
+                              _toggleAudioDenoise,
+                              isAi: true,
+                            ),
+                            const SizedBox(width: 8),
+                            _buildToolOption(
                               "AI Cutout",
                               _bgCutoutMode,
                               _toggleCutout,
@@ -264,15 +327,6 @@ class _TrimmerViewState extends State<TrimmerView> {
                               _isGeneratingCaptions ? () {} : _generateAICaptions,
                               isAi: true,
                             ),
-                            const SizedBox(width: 8),
-                            _buildToolOption("Speed", "${_speed}x", () {
-                              setState(() {
-                                if (_speed == 1.0) _speed = 1.5;
-                                else if (_speed == 1.5) _speed = 2.0;
-                                else if (_speed == 2.0) _speed = 0.5;
-                                else _speed = 1.0;
-                              });
-                            }),
                             const SizedBox(width: 8),
                             _buildToolOption("Filter", _selectedFilter, () {
                               final keys = _filters.keys.toList();
