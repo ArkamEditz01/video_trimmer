@@ -1,4 +1,6 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:video_trimmer/video_trimmer.dart';
 import 'package:ffmpeg_kit_flutter_min_gpl/ffmpeg_kit.dart';
 import 'package:ffmpeg_kit_flutter_min_gpl/return_code.dart';
@@ -21,8 +23,10 @@ class _TrimmerViewState extends State<TrimmerView> {
   bool _isExporting = false;
   bool _isGeneratingCaptions = false;
   
-  // AI & Canvas States
-  String _selectedRatio = 'Original'; // Original, 9:16, 16:9, 1:1
+  // AI, Canvas & Music States
+  String? _bgMusicPath;
+  String _bgMusicName = "No Music";
+  String _selectedRatio = 'Original';
   String _selectedFilter = 'Normal';
   String _bgCutoutMode = 'Off'; 
   String _aiVelocityMode = 'Off'; 
@@ -69,6 +73,27 @@ class _TrimmerViewState extends State<TrimmerView> {
     _speech = stt.SpeechToText();
   }
 
+  void _pickBackgroundMusic() async {
+    FilePickerResult? result = await FilePicker.platform.pickFiles(
+      type: FileType.audio,
+    );
+
+    if (result != null && result.files.single.path != null) {
+      setState(() {
+        _bgMusicPath = result.files.single.path;
+        _bgMusicName = result.files.single.name;
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: const Color(0xFF00E5FF),
+            content: Text("🎵 Music Loaded: $_bgMusicName", style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+          ),
+        );
+      }
+    }
+  }
+
   void _generateAICaptions() async {
     setState(() => _isGeneratingCaptions = true);
     
@@ -111,13 +136,6 @@ class _TrimmerViewState extends State<TrimmerView> {
         _selectedRatio = 'Original';
       }
     });
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        backgroundColor: const Color(0xFF00E5FF),
-        content: Text("📐 Canvas Ratio: $_selectedRatio", style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
-      ),
-    );
   }
 
   void _toggleCutout() {
@@ -211,7 +229,6 @@ class _TrimmerViewState extends State<TrimmerView> {
       videoFilter += ",reverse";
     }
 
-    // Aspect Ratio Scaling & Padding Filters
     if (_selectedRatio == '9:16') {
       videoFilter += ",scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2:black";
     } else if (_selectedRatio == '16:9') {
@@ -240,20 +257,21 @@ class _TrimmerViewState extends State<TrimmerView> {
       videoFilter += ",curves=vintage";
     }
 
-    // Audio Filters
-    String audioFilter = "atempo=$atempo";
-    if (_isReverse) {
-      audioFilter += ",areverse";
-    }
+    // Audio Filter Setup & Mixing
+    String command = "";
+    if (_bgMusicPath != null && File(_bgMusicPath!).existsSync()) {
+      // Merge Original Audio + Added Music Track
+      command =
+          "-ss $startSec -i \"${widget.videoPath}\" -i \"$_bgMusicPath\" -t $durationSec -filter_complex \"[0:v]$videoFilter[v];[0:a]atempo=$atempo,volume=1.0[a1];[1:a]volume=0.4[a2];[a1][a2]amix=inputs=2:duration=first[a]\" -map \"[v]\" -map \"[a]\" -preset ultrafast \"$outPath\"";
+    } else {
+      String audioFilter = "atempo=$atempo";
+      if (_isReverse) audioFilter += ",areverse";
+      if (_aiVoiceMode == 'Denoise') audioFilter += ",afftdn=nf=-25,anlmdn=s=3";
+      if (_aiVoiceMode == 'Voice Isolate') audioFilter += ",afftdn=nf=-35,highpass=f=220,lowpass=f=3400,volume=1.6";
 
-    if (_aiVoiceMode == 'Denoise') {
-      audioFilter += ",afftdn=nf=-25,anlmdn=s=3";
-    } else if (_aiVoiceMode == 'Voice Isolate') {
-      audioFilter += ",afftdn=nf=-35,highpass=f=220,lowpass=f=3400,volume=1.6";
+      command =
+          "-ss $startSec -i \"${widget.videoPath}\" -t $durationSec -filter_complex \"[0:v]$videoFilter[v];[0:a]$audioFilter[a]\" -map \"[v]\" -map \"[a]\" -preset ultrafast \"$outPath\"";
     }
-
-    String command =
-        "-ss $startSec -i \"${widget.videoPath}\" -t $durationSec -filter_complex \"[0:v]$videoFilter[v];[0:a]$audioFilter[a]\" -map \"[v]\" -map \"[a]\" -preset ultrafast \"$outPath\"";
 
     await FFmpegKit.executeAsync(command, (session) async {
       final returnCode = await session.getReturnCode();
@@ -397,10 +415,16 @@ class _TrimmerViewState extends State<TrimmerView> {
                           children: [
                             const SizedBox(width: 8),
                             _buildToolOption(
+                              "Add Music",
+                              _bgMusicPath != null ? "🎵 Added" : "+ Pick",
+                              _pickBackgroundMusic,
+                              isAi: true,
+                            ),
+                            const SizedBox(width: 8),
+                            _buildToolOption(
                               "Canvas",
                               _selectedRatio,
                               _toggleAspectRatio,
-                              isAi: true,
                             ),
                             const SizedBox(width: 8),
                             _buildToolOption(
