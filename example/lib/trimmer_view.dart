@@ -3,9 +3,6 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:video_trimmer/video_trimmer.dart';
-import 'package:ffmpeg_kit_flutter_full_gpl/ffmpeg_kit.dart';
-import 'package:ffmpeg_kit_flutter_full_gpl/return_code.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
 
 class TrimmerView extends StatefulWidget {
@@ -28,7 +25,6 @@ class _TrimmerViewState extends State<TrimmerView> {
   Offset _textPosition = const Offset(0, 0);
 
   double _videoScale = 1.0;
-  final List<double> _keyframes = [];
   bool _isKeyframeActive = false;
 
   String _maskType = 'None';
@@ -77,7 +73,6 @@ class _TrimmerViewState extends State<TrimmerView> {
   };
 
   String _selectedMusicTitle = "";
-  String? _bgMusicPath;
   String _selectedResolution = "1080P";
   String _aiVoiceMode = 'Off';
   double _speed = 1.0;
@@ -92,15 +87,8 @@ class _TrimmerViewState extends State<TrimmerView> {
 
   void _addOrRemoveKeyframe() {
     setState(() {
-      if (_isKeyframeActive) {
-        _keyframes.clear();
-        _videoScale = 1.0;
-        _isKeyframeActive = false;
-      } else {
-        _keyframes.add(_startValue);
-        _videoScale = 1.25;
-        _isKeyframeActive = true;
-      }
+      _isKeyframeActive = !_isKeyframeActive;
+      _videoScale = _isKeyframeActive ? 1.25 : 1.0;
     });
 
     ScaffoldMessenger.of(context).showSnackBar(
@@ -310,59 +298,22 @@ class _TrimmerViewState extends State<TrimmerView> {
 
   Future<void> _exportVideo() async {
     setState(() => _isExporting = true);
-    final dir = await getTemporaryDirectory();
-    final outPath = '${dir.path}/ShadowCut_${DateTime.now().millisecondsSinceEpoch}.mp4';
 
-    double startSec = _startValue / 1000.0;
-    double durationSec = (_endValue - _startValue) / 1000.0;
-    if (durationSec <= 0) durationSec = 5.0;
-
-    String setpts = (1.0 / _speed).toStringAsFixed(2);
-    String atempo = _speed < 0.5 ? "0.5" : _speed.toStringAsFixed(2);
-
-    String videoFilter = "setpts=${setpts}*PTS";
-
-    if (_isKeyframeActive) {
-      videoFilter += ",zoompan=z='min(zoom+0.0015,1.3)':d=125:x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':s=1080x1920";
-    }
-
-    if (_activeEffect == 'Halo Desenfoque') {
-      videoFilter += ",gblur=sigma=10:steps=2";
-    } else if (_activeEffect == 'Enfoque Flash') {
-      videoFilter += ",eq=contrast=1.5:brightness=0.1:saturation=1.4";
-    }
-
-    if (_maskType == 'Circle') {
-      videoFilter += ",geq=r='r(X,Y)':a='if(lte(hypot(X-W/2,Y-H/2),H/2.5),255,0)'";
-    } else if (_maskType == 'Diagonal' || _maskType == 'Linear') {
-      videoFilter += ",geq=r='r(X,Y)':a='if(lte(Y - X*tan(${_maskAngle * math.pi / 180}), H*0.2),255,0)'";
-    }
-
-    if (_customText.isNotEmpty) {
-      String cleanText = _customText.replaceAll("'", "");
-      videoFilter += ",drawtext=text='$cleanText':fontcolor=white:fontsize=48:box=1:boxcolor=black@0.6:boxborderw=8:x=(w-text_w)/2:y=h*0.25";
-    }
-
-    String command = "";
-    if (_bgMusicPath != null && File(_bgMusicPath!).existsSync()) {
-      command =
-          "-ss $startSec -i \"${widget.videoPath}\" -i \"$_bgMusicPath\" -t $durationSec -filter_complex \"[0:v]$videoFilter[v];[0:a]atempo=$atempo,volume=1.0[a1];[1:a]volume=0.4[a2];[a1][a2]amix=inputs=2:duration=first[a]\" -map \"[v]\" -map \"[a]\" -preset ultrafast \"$outPath\"";
-    } else {
-      String audioFilter = "atempo=$atempo";
-      command =
-          "-ss $startSec -i \"${widget.videoPath}\" -t $durationSec -filter_complex \"[0:v]$videoFilter[v];[0:a]$audioFilter[a]\" -map \"[v]\" -map \"[a]\" -preset ultrafast \"$outPath\"";
-    }
-
-    await FFmpegKit.executeAsync(command, (session) async {
-      final returnCode = await session.getReturnCode();
-      setState(() => _isExporting = false);
-      if (ReturnCode.isSuccess(returnCode)) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(backgroundColor: const Color(0xFF00E5FF), content: Text("Export Success: $outPath", style: const TextStyle(color: Colors.black))),
-        );
-      }
-    });
+    await widget._trimmer.saveTrimmedVideo(
+      startValue: _startValue,
+      endValue: _endValue,
+      onSave: (String? outputPath) {
+        setState(() => _isExporting = false);
+        if (outputPath != null && mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              backgroundColor: const Color(0xFF00E5FF),
+              content: Text("Export Success: $outputPath", style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+            ),
+          );
+        }
+      },
+    );
   }
 
   @override
