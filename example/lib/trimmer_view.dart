@@ -3,8 +3,8 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:video_trimmer/video_trimmer.dart';
-import 'package:ffmpeg_kit_flutter/ffmpeg_kit.dart';
-import 'package:ffmpeg_kit_flutter/return_code.dart';
+import 'package:ffmpeg_kit_flutter_full_gpl/ffmpeg_kit.dart';
+import 'package:ffmpeg_kit_flutter_full_gpl/return_code.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
 
@@ -24,21 +24,16 @@ class _TrimmerViewState extends State<TrimmerView> {
   bool _isExporting = false;
   bool _isGeneratingCaptions = false;
   
-  // Custom Text & Watermark
   String _customText = "";
   Offset _textPosition = const Offset(0, 0);
 
-  // Keyframe Transform States (Diamond ➕ Control)
   double _videoScale = 1.0;
   final List<double> _keyframes = [];
   bool _isKeyframeActive = false;
 
-  // Masking Feature States
   String _maskType = 'None';
   double _maskAngle = 35.0;
   bool _showMaskControl = false;
-
-  // Trending Effects States
   String _activeEffect = 'None';
 
   final Map<String, ColorFilter?> _trendingEffects = {
@@ -81,7 +76,6 @@ class _TrimmerViewState extends State<TrimmerView> {
     ]),
   };
 
-  // FX, Audio & AI States
   String _selectedMusicTitle = "";
   String? _bgMusicPath;
   String _selectedResolution = "1080P";
@@ -113,7 +107,7 @@ class _TrimmerViewState extends State<TrimmerView> {
       SnackBar(
         backgroundColor: const Color(0xFF00E5FF),
         content: Text(
-          _isKeyframeActive ? "💎 Keyframe Zoom Set at Current Time!" : "Keyframe Reset",
+          _isKeyframeActive ? "💎 Keyframe Zoom Set!" : "Keyframe Reset",
           style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
         ),
       ),
@@ -328,7 +322,6 @@ class _TrimmerViewState extends State<TrimmerView> {
 
     String videoFilter = "setpts=${setpts}*PTS";
 
-    // Keyframe Zoom Animation Export Logic
     if (_isKeyframeActive) {
       videoFilter += ",zoompan=z='min(zoom+0.0015,1.3)':d=125:x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':s=1080x1920";
     }
@@ -423,7 +416,6 @@ class _TrimmerViewState extends State<TrimmerView> {
       ),
       body: Column(
         children: [
-          // CapCut Video Viewport with Transform / Keyframe Scaling
           Expanded(
             child: Center(
               child: Container(
@@ -520,7 +512,6 @@ class _TrimmerViewState extends State<TrimmerView> {
                 ),
                 Row(
                   children: [
-                    // CapCut Keyframe Diamond Button
                     GestureDetector(
                       onTap: _addOrRemoveKeyframe,
                       child: Container(
