@@ -6,12 +6,14 @@ class ScrollableThumbnailViewer extends StatelessWidget {
   final Trimmer trimmer;
   final double appViewerHeight;
   final double appViewerWidth;
+  final ScrollController? scrollController;
 
   const ScrollableThumbnailViewer({
     super.key,
     required this.trimmer,
     required this.appViewerHeight,
     required this.appViewerWidth,
+    this.scrollController,
   });
 
   @override
@@ -24,11 +26,7 @@ class ScrollableThumbnailViewer extends StatelessWidget {
         borderRadius: BorderRadius.circular(4),
       ),
       child: const Center(
-        child: Icon(
-          Icons.movie_creation_outlined,
-          color: Colors.white38,
-          size: 24,
-        ),
+        child: Icon(Icons.movie_creation_outlined, color: Colors.white38, size: 24),
       ),
     );
   }
