@@ -7,6 +7,7 @@ class FixedThumbnailViewer extends StatelessWidget {
   final double appViewerHeight;
   final double appViewerWidth;
   final File? videoFile;
+  final int? videoDuration;
 
   const FixedThumbnailViewer({
     super.key,
@@ -14,6 +15,7 @@ class FixedThumbnailViewer extends StatelessWidget {
     required this.appViewerHeight,
     required this.appViewerWidth,
     this.videoFile,
+    this.videoDuration,
   });
 
   @override
