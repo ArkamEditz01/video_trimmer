@@ -9,6 +9,7 @@ class ScrollableThumbnailViewer extends StatelessWidget {
   final ScrollController? scrollController;
   final File? videoFile;
   final int? videoDuration;
+  final BoxFit? fit;
 
   const ScrollableThumbnailViewer({
     super.key,
@@ -18,6 +19,7 @@ class ScrollableThumbnailViewer extends StatelessWidget {
     this.scrollController,
     this.videoFile,
     this.videoDuration,
+    this.fit,
   });
 
   @override
