@@ -9,8 +9,7 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  # Yahan humne local 'path: ../' hata kar stable official package link kar diya
-  video_trimmer: ^3.0.0
+  video_player: ^2.8.6
   file_picker: ^8.0.0
   path_provider: ^2.1.2
   speech_to_text: ^7.0.0
