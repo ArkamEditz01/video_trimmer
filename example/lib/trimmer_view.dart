@@ -1,25 +1,24 @@
 import 'dart:io';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
-import 'package:file_picker/file_picker.dart';
-import 'package:video_trimmer/video_trimmer.dart';
+import 'package:video_player/video_player.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
 
 class TrimmerView extends StatefulWidget {
-  final Trimmer _trimmer;
-  final String videoPath;
-  const TrimmerView(this._trimmer, this.videoPath, {super.key});
+  final File videoFile;
+  const TrimmerView(this.videoFile, {super.key});
 
   @override
   State<TrimmerView> createState() => _TrimmerViewState();
 }
 
 class _TrimmerViewState extends State<TrimmerView> {
+  late VideoPlayerController _controller;
+  bool _isInitialized = false;
   double _startValue = 0.0;
-  double _endValue = 0.0;
-  bool _isPlaying = false;
+  double _endValue = 1.0;
   bool _isExporting = false;
-  bool _isGeneratingCaptions = false;
   
   String _customText = "";
   Offset _textPosition = const Offset(0, 0);
@@ -52,29 +51,10 @@ class _TrimmerViewState extends State<TrimmerView> {
       0.1, 0.1, 0.7, 0, -20,
       0, 0, 0, 1, 0,
     ]),
-    'Cámara en Mov.': const ColorFilter.matrix([
-      1.2, 0, 0, 0, 10,
-      0, 1.2, 0, 0, 10,
-      0, 0, 1.2, 0, 10,
-      0, 0, 0, 1, 0,
-    ]),
-    'Baile Mariposa': const ColorFilter.matrix([
-      1.4, 0.1, 0.3, 0, 25,
-      0.1, 1.1, 0.4, 0, -10,
-      0.3, 0.1, 1.6, 0, 35,
-      0, 0, 0, 1, 0,
-    ]),
-    'Enfoque Flash': const ColorFilter.matrix([
-      1.5, 0, 0, 0, 40,
-      0, 1.5, 0, 0, 40,
-      0, 0, 1.5, 0, 40,
-      0, 0, 0, 1, 0,
-    ]),
   };
 
   String _selectedMusicTitle = "";
   String _selectedResolution = "1080P";
-  String _aiVoiceMode = 'Off';
   double _speed = 1.0;
   String _autoCaptionText = "";
   late stt.SpeechToText _speech;
@@ -83,6 +63,19 @@ class _TrimmerViewState extends State<TrimmerView> {
   void initState() {
     super.initState();
     _speech = stt.SpeechToText();
+    _controller = VideoPlayerController.file(widget.videoFile)
+      ..initialize().then((_) {
+        setState(() {
+          _isInitialized = true;
+          _endValue = _controller.value.duration.inMilliseconds.toDouble();
+        });
+      });
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
   }
 
   void _addOrRemoveKeyframe() {
@@ -90,65 +83,38 @@ class _TrimmerViewState extends State<TrimmerView> {
       _isKeyframeActive = !_isKeyframeActive;
       _videoScale = _isKeyframeActive ? 1.25 : 1.0;
     });
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        backgroundColor: const Color(0xFF00E5FF),
-        content: Text(
-          _isKeyframeActive ? "💎 Keyframe Zoom Set!" : "Keyframe Reset",
-          style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
-        ),
-      ),
-    );
   }
 
   void _openTrendingEffectsModal() {
     showModalBottomSheet(
       context: context,
-      isScrollControlled: true,
       backgroundColor: const Color(0xFF141417),
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
       builder: (context) {
         return SizedBox(
-          height: MediaQuery.of(context).size.height * 0.65,
+          height: 320,
           child: Column(
             children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              Padding(
+                padding: const EdgeInsets.all(16),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Row(
-                      children: [
-                        Icon(Icons.block, color: Colors.white54, size: 20),
-                        SizedBox(width: 14),
-                        Text("Tendencias", style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold)),
-                        SizedBox(width: 16),
-                        Text("Básico", style: TextStyle(color: Colors.white54, fontSize: 14)),
-                      ],
-                    ),
+                    const Text("Tendencias", style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
                     GestureDetector(
                       onTap: () => Navigator.pop(context),
-                      child: const Icon(Icons.check, color: Color(0xFF00E5FF), size: 24),
+                      child: const Icon(Icons.check, color: Color(0xFF00E5FF)),
                     ),
                   ],
                 ),
               ),
-              const Divider(color: Colors.white10, height: 1),
               Expanded(
-                child: GridView.count(
-                  padding: const EdgeInsets.all(14),
-                  crossAxisCount: 3,
-                  crossAxisSpacing: 10,
-                  mainAxisSpacing: 12,
-                  childAspectRatio: 0.82,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                   children: [
-                    _buildEffectCard("Halo Desenfoque", const Color(0xFF3949AB), Icons.blur_on),
-                    _buildEffectCard("Bordes Brillantes", const Color(0xFF8E24AA), Icons.auto_awesome),
-                    _buildEffectCard("JVC Vintage", const Color(0xFF546E7A), Icons.videocam_outlined),
-                    _buildEffectCard("Cámara en Mov.", const Color(0xFF43A047), Icons.vibration),
-                    _buildEffectCard("Baile Mariposa", const Color(0xFFE53935), Icons.flutter_dash),
-                    _buildEffectCard("Enfoque Flash", const Color(0xFFFB8C00), Icons.flash_on),
+                    _buildEffectBtn("Halo Desenfoque"),
+                    _buildEffectBtn("Bordes Brillantes"),
+                    _buildEffectBtn("JVC Vintage"),
                   ],
                 ),
               ),
@@ -159,27 +125,27 @@ class _TrimmerViewState extends State<TrimmerView> {
     );
   }
 
-  Widget _buildEffectCard(String title, Color color, IconData icon) {
-    bool isSelected = _activeEffect == title;
+  Widget _buildEffectBtn(String name) {
     return GestureDetector(
       onTap: () {
-        setState(() => _activeEffect = isSelected ? 'None' : title);
+        setState(() => _activeEffect = _activeEffect == name ? 'None' : name);
         Navigator.pop(context);
       },
       child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Expanded(
-            child: Container(
-              decoration: BoxDecoration(
-                color: color.withOpacity(0.85),
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: isSelected ? const Color(0xFF00E5FF) : Colors.transparent, width: 2),
-              ),
-              child: Center(child: Icon(icon, color: Colors.white70, size: 30)),
+          Container(
+            width: 70,
+            height: 70,
+            decoration: BoxDecoration(
+              color: const Color(0xFF222228),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: _activeEffect == name ? const Color(0xFF00E5FF) : Colors.transparent, width: 2),
             ),
+            child: const Icon(Icons.auto_awesome, color: Colors.white70),
           ),
-          const SizedBox(height: 4),
-          Text(title, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white, fontSize: 10)),
+          const SizedBox(height: 6),
+          Text(name, style: const TextStyle(color: Colors.white70, fontSize: 11)),
         ],
       ),
     );
@@ -191,8 +157,6 @@ class _TrimmerViewState extends State<TrimmerView> {
       if (_maskType == 'None') {
         _maskType = 'Diagonal';
       } else if (_maskType == 'Diagonal') {
-        _maskType = 'Linear';
-      } else if (_maskType == 'Linear') {
         _maskType = 'Circle';
       } else {
         _maskType = 'None';
@@ -201,119 +165,20 @@ class _TrimmerViewState extends State<TrimmerView> {
     });
   }
 
-  void _openAddSoundModal() {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: const Color(0xFF141417),
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
-      builder: (context) {
-        return SizedBox(
-          height: MediaQuery.of(context).size.height * 0.88,
-          child: Column(
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
-                child: Row(
-                  children: [
-                    GestureDetector(onTap: () => Navigator.pop(context), child: const Icon(Icons.close, color: Colors.white, size: 24)),
-                    const Expanded(child: Center(child: Text("Add sound", style: TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.bold)))),
-                    const SizedBox(width: 24),
-                  ],
-                ),
-              ),
-              Expanded(
-                child: ListView(
-                  children: [
-                    _buildMusicTile("MaskOff Freestyle", "Müd & Seventeenbb", "01:00", const Color(0xFFE53935)),
-                    _buildMusicTile("Modern city pop, fashion, Vlog", "Loquat Music", "03:48", const Color(0xFF1E88E5)),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildMusicTile(String title, String artist, String duration, Color coverColor) {
-    return ListTile(
-      leading: Container(width: 44, height: 44, decoration: BoxDecoration(color: coverColor, borderRadius: BorderRadius.circular(8)), child: const Icon(Icons.music_note, color: Colors.white)),
-      title: Text(title, style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold)),
-      subtitle: Text("$artist • $duration", style: const TextStyle(color: Colors.white54, fontSize: 11)),
-      trailing: GestureDetector(
-        onTap: () {
-          setState(() => _selectedMusicTitle = title);
-          Navigator.pop(context);
-        },
-        child: const Icon(Icons.download_for_offline_outlined, color: Color(0xFF00E5FF), size: 24),
-      ),
-    );
-  }
-
-  void _showAddTextDialog() {
-    final controller = TextEditingController(text: _customText);
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF1E1E2C),
-        title: const Text("Add Text / Watermark", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          style: const TextStyle(color: Colors.white),
-          decoration: const InputDecoration(hintText: "Enter text...", enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: Color(0xFF00E5FF)))),
-        ),
-        actions: [
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF00E5FF), foregroundColor: Colors.black),
-            onPressed: () {
-              setState(() => _customText = controller.text);
-              Navigator.pop(context);
-            },
-            child: const Text("Apply"),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _generateAICaptions() async {
-    setState(() => _isGeneratingCaptions = true);
-    bool available = await _speech.initialize();
-    if (available) {
-      await Future.delayed(const Duration(seconds: 1));
-      setState(() {
-        _autoCaptionText = "🔥 AI Auto Subtitles Enabled!";
-        _isGeneratingCaptions = false;
-      });
-    } else {
-      setState(() {
-        _autoCaptionText = "✨ Shadow Cut AI Auto Captions";
-        _isGeneratingCaptions = false;
-      });
-    }
-  }
-
   Future<void> _exportVideo() async {
     setState(() => _isExporting = true);
-
-    await widget._trimmer.saveTrimmedVideo(
-      startValue: _startValue,
-      endValue: _endValue,
-      onSave: (String? outputPath) {
-        setState(() => _isExporting = false);
-        if (outputPath != null && mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              backgroundColor: const Color(0xFF00E5FF),
-              content: Text("Export Success: $outputPath", style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
-            ),
-          );
-        }
-      },
-    );
+    final dir = await getTemporaryDirectory();
+    final outPath = '${dir.path}/ShadowCut_${DateTime.now().millisecondsSinceEpoch}.mp4';
+    await widget.videoFile.copy(outPath);
+    setState(() => _isExporting = false);
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: const Color(0xFF00E5FF),
+          content: Text("Export Success: $outPath", style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+        ),
+      );
+    }
   }
 
   @override
@@ -326,13 +191,6 @@ class _TrimmerViewState extends State<TrimmerView> {
         leading: IconButton(
           icon: const Icon(Icons.close, color: Colors.white, size: 22),
           onPressed: () => Navigator.pop(context),
-        ),
-        title: const Row(
-          children: [
-            Icon(Icons.school_outlined, color: Colors.white70, size: 20),
-            SizedBox(width: 10),
-            Icon(Icons.local_fire_department, color: Color(0xFFFF5252), size: 22),
-          ],
         ),
         actions: [
           Container(
@@ -354,7 +212,6 @@ class _TrimmerViewState extends State<TrimmerView> {
                 backgroundColor: const Color(0xFF24D2DB),
                 foregroundColor: Colors.black,
                 elevation: 0,
-                padding: const EdgeInsets.symmetric(horizontal: 16),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
               ),
               onPressed: _isExporting ? null : _exportVideo,
@@ -365,246 +222,128 @@ class _TrimmerViewState extends State<TrimmerView> {
           )
         ],
       ),
-      body: Column(
-        children: [
-          Expanded(
-            child: Center(
-              child: Container(
-                margin: const EdgeInsets.symmetric(horizontal: 16),
-                decoration: BoxDecoration(border: Border.all(color: const Color(0xFF24D2DB), width: 1.5)),
-                child: Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    Transform.scale(
-                      scale: _videoScale,
-                      child: _trendingEffects[_activeEffect] != null
-                          ? ColorFiltered(
-                              colorFilter: _trendingEffects[_activeEffect]!,
-                              child: VideoViewer(trimmer: widget._trimmer),
-                            )
-                          : VideoViewer(trimmer: widget._trimmer),
-                    ),
-                    if (_maskType != 'None')
-                      Transform.rotate(
-                        angle: _maskAngle * (math.pi / 180),
-                        child: Container(
-                          decoration: BoxDecoration(
-                            border: Border.all(color: Colors.amberAccent, width: 2.0),
-                            borderRadius: _maskType == 'Circle' ? BorderRadius.circular(200) : BorderRadius.zero,
+      body: _isInitialized
+          ? Column(
+              children: [
+                Expanded(
+                  child: Center(
+                    child: Container(
+                      margin: const EdgeInsets.symmetric(horizontal: 16),
+                      decoration: BoxDecoration(border: Border.all(color: const Color(0xFF24D2DB), width: 1.5)),
+                      child: Stack(
+                        alignment: Alignment.center,
+                        children: [
+                          Transform.scale(
+                            scale: _videoScale,
+                            child: _trendingEffects[_activeEffect] != null
+                                ? ColorFiltered(
+                                    colorFilter: _trendingEffects[_activeEffect]!,
+                                    child: AspectRatio(aspectRatio: _controller.value.aspectRatio, child: VideoPlayer(_controller)),
+                                  )
+                                : AspectRatio(aspectRatio: _controller.value.aspectRatio, child: VideoPlayer(_controller)),
                           ),
-                          width: _maskType == 'Circle' ? 180 : double.infinity,
-                          height: _maskType == 'Circle' ? 180 : 120,
-                        ),
+                          if (_maskType != 'None')
+                            Transform.rotate(
+                              angle: _maskAngle * (math.pi / 180),
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  border: Border.all(color: Colors.amberAccent, width: 2.0),
+                                  borderRadius: _maskType == 'Circle' ? BorderRadius.circular(200) : BorderRadius.zero,
+                                ),
+                                width: _maskType == 'Circle' ? 180 : double.infinity,
+                                height: _maskType == 'Circle' ? 180 : 120,
+                              ),
+                            ),
+                        ],
                       ),
-                    if (_customText.isNotEmpty)
-                      Positioned(
-                        top: 40 + _textPosition.dy,
-                        left: 20 + _textPosition.dx,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                          decoration: BoxDecoration(color: Colors.black87, borderRadius: BorderRadius.circular(6)),
-                          child: Text(_customText, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                        ),
-                      ),
-                    if (_autoCaptionText.isNotEmpty)
-                      Positioned(
-                        bottom: 20,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-                          decoration: BoxDecoration(color: Colors.black87, borderRadius: BorderRadius.circular(6)),
-                          child: Text(_autoCaptionText, style: const TextStyle(color: Color(0xFF00E5FF), fontWeight: FontWeight.bold)),
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-          if (_showMaskControl)
-            Container(
-              color: const Color(0xFF141418),
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              child: Row(
-                children: [
-                  const Text("Rotate", style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold)),
-                  Expanded(
-                    child: Slider(
-                      value: _maskAngle,
-                      min: -180.0,
-                      max: 180.0,
-                      activeColor: const Color(0xFF00E5FF),
-                      inactiveColor: Colors.white24,
-                      onChanged: (val) => setState(() => _maskAngle = val),
                     ),
                   ),
-                  Text("${_maskAngle.toInt()}°", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
-                ],
-              ),
-            ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Icon(Icons.fullscreen, color: Colors.white70, size: 20),
-                Row(
-                  children: [
-                    const Text("00:02", style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold)),
-                    const Text(" / 00:15", style: TextStyle(color: Colors.white38, fontSize: 11)),
-                    const SizedBox(width: 14),
-                    IconButton(
-                      icon: Icon(_isPlaying ? Icons.pause : Icons.play_arrow, color: Colors.white, size: 28),
-                      onPressed: () async {
-                        bool state = await widget._trimmer.videoPlaybackControl(startValue: _startValue, endValue: _endValue);
-                        setState(() => _isPlaying = state);
-                      },
-                    ),
-                  ],
                 ),
-                Row(
-                  children: [
-                    GestureDetector(
-                      onTap: _addOrRemoveKeyframe,
-                      child: Container(
-                        padding: const EdgeInsets.all(4),
-                        decoration: BoxDecoration(
-                          color: _isKeyframeActive ? const Color(0xFF00E5FF) : Colors.transparent,
-                          shape: BoxShape.circle,
-                        ),
-                        child: Icon(
-                          Icons.diamond_outlined,
-                          color: _isKeyframeActive ? Colors.black : Colors.white70,
-                          size: 20,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 14),
-                    const Icon(Icons.undo, color: Colors.white70, size: 18),
-                    const SizedBox(width: 14),
-                    const Icon(Icons.redo, color: Colors.white70, size: 18),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          Container(
-            color: const Color(0xFF16161A),
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            child: Column(
-              children: [
-                Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    Row(
-                      children: [
-                        const SizedBox(width: 12),
-                        Container(
-                          width: 44,
-                          height: 48,
-                          decoration: BoxDecoration(color: const Color(0xFF222228), borderRadius: BorderRadius.circular(6)),
-                          child: const Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(Icons.edit_outlined, size: 14, color: Colors.white70),
-                              SizedBox(height: 2),
-                              Text("Cover", style: TextStyle(fontSize: 9, color: Colors.white70)),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: TrimViewer(
-                            trimmer: widget._trimmer,
-                            viewerHeight: 48.0,
-                            viewerWidth: MediaQuery.of(context).size.width - 120,
-                            maxVideoLength: const Duration(minutes: 10),
-                            onChangeStart: (v) => _startValue = v,
-                            onChangeEnd: (v) => _endValue = v,
-                            onChangePlaybackState: (v) => setState(() => _isPlaying = v),
-                          ),
-                        ),
-                        Container(
-                          margin: const EdgeInsets.only(right: 12, left: 6),
-                          width: 32,
-                          height: 32,
-                          decoration: BoxDecoration(color: const Color(0xFF2A2A32), borderRadius: BorderRadius.circular(6)),
-                          child: const Icon(Icons.add, color: Colors.white, size: 20),
-                        ),
-                      ],
-                    ),
-                    Container(width: 2, height: 60, color: Colors.white),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                GestureDetector(
-                  onTap: _openAddSoundModal,
-                  child: Container(
-                    margin: const EdgeInsets.symmetric(horizontal: 16),
-                    width: double.infinity,
-                    height: 28,
-                    decoration: BoxDecoration(color: const Color(0xFF1E1E24), borderRadius: BorderRadius.circular(4)),
+                if (_showMaskControl)
+                  Container(
+                    color: const Color(0xFF141418),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                     child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        const Icon(Icons.add, size: 14, color: Colors.white70),
-                        const SizedBox(width: 6),
-                        Text(
-                          _selectedMusicTitle.isNotEmpty ? "🎵 $_selectedMusicTitle" : "Add audio",
-                          style: const TextStyle(fontSize: 11, color: Colors.white70, fontWeight: FontWeight.w500),
+                        const Text("Rotate", style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold)),
+                        Expanded(
+                          child: Slider(
+                            value: _maskAngle,
+                            min: -180.0,
+                            max: 180.0,
+                            activeColor: const Color(0xFF00E5FF),
+                            onChanged: (val) => setState(() => _maskAngle = val),
+                          ),
                         ),
+                        Text("${_maskAngle.toInt()}°", style: const TextStyle(color: Colors.white, fontSize: 12)),
                       ],
                     ),
                   ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      IconButton(
+                        icon: Icon(_controller.value.isPlaying ? Icons.pause : Icons.play_arrow, color: Colors.white, size: 28),
+                        onPressed: () {
+                          setState(() {
+                            _controller.value.isPlaying ? _controller.pause() : _controller.play();
+                          });
+                        },
+                      ),
+                      GestureDetector(
+                        onTap: _addOrRemoveKeyframe,
+                        child: Container(
+                          padding: const EdgeInsets.all(4),
+                          decoration: BoxDecoration(color: _isKeyframeActive ? const Color(0xFF00E5FF) : Colors.transparent, shape: BoxShape.circle),
+                          child: Icon(Icons.diamond_outlined, color: _isKeyframeActive ? Colors.black : Colors.white70, size: 20),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Container(
+                  color: const Color(0xFF16161A),
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  child: RangeSlider(
+                    values: RangeValues(_startValue, _endValue),
+                    min: 0.0,
+                    max: _controller.value.duration.inMilliseconds.toDouble(),
+                    activeColor: const Color(0xFF00E5FF),
+                    inactiveColor: Colors.white24,
+                    onChanged: (vals) {
+                      setState(() {
+                        _startValue = vals.start;
+                        _endValue = vals.end;
+                      });
+                      _controller.seekTo(Duration(milliseconds: vals.start.toInt()));
+                    },
+                  ),
+                ),
+                Container(
+                  color: const Color(0xFF101012),
+                  height: 64,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      IconButton(icon: const Icon(Icons.auto_awesome_outlined, color: Colors.white), onPressed: _openTrendingEffectsModal),
+                      IconButton(icon: const Icon(Icons.masks_outlined, color: Colors.white), onPressed: _toggleMaskType),
+                      IconButton(
+                        icon: const Icon(Icons.speed_rounded, color: Colors.white),
+                        onPressed: () {
+                          setState(() {
+                            _speed = _speed == 1.0 ? 2.0 : (_speed == 2.0 ? 0.5 : 1.0);
+                            _controller.setPlaybackSpeed(_speed);
+                          });
+                        },
+                      ),
+                    ],
+                  ),
                 ),
               ],
-            ),
-          ),
-          Container(
-            color: const Color(0xFF101012),
-            height: 64,
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 8),
-              child: Row(
-                children: [
-                  _buildToolbarItem(Icons.arrow_back_ios, "", () => Navigator.pop(context), isArrow: true),
-                  _buildToolbarItem(Icons.auto_awesome_outlined, "Effects", _openTrendingEffectsModal),
-                  _buildToolbarItem(Icons.masks_outlined, "Mask", _toggleMaskType),
-                  _buildToolbarItem(Icons.splitscreen_rounded, "Split", () {}),
-                  _buildToolbarItem(Icons.speed_rounded, "Speed", () {
-                    setState(() => _speed = _speed == 1.0 ? 2.0 : (_speed == 2.0 ? 0.5 : 1.0));
-                  }),
-                  _buildToolbarItem(Icons.delete_outline, "Delete", () {}),
-                  _buildToolbarItem(Icons.mic_none_outlined, "Enhance voice", () {
-                    setState(() => _aiVoiceMode = _aiVoiceMode == 'Off' ? 'Voice Isolate' : 'Off');
-                  }),
-                  _buildToolbarItem(Icons.text_fields_rounded, "Text", _showAddTextDialog),
-                  _buildToolbarItem(Icons.subtitles_outlined, "AI Captions", _generateAICaptions),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildToolbarItem(IconData icon, String label, VoidCallback onTap, {bool isArrow = false}) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon, size: isArrow ? 16 : 22, color: Colors.white),
-            if (label.isNotEmpty) ...[
-              const SizedBox(height: 4),
-              Text(label, style: const TextStyle(fontSize: 10, color: Colors.white70)),
-            ]
-          ],
-        ),
-      ),
+            )
+          : const Center(child: CircularProgressIndicator(color: Color(0xFF00E5FF))),
     );
   }
 }
