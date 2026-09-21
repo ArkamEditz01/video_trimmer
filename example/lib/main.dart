@@ -3,7 +3,10 @@ import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'trimmer_view.dart';
 
-void main() => runApp(const MyApp());
+void main() {
+  WidgetsFlutterBinding.ensureInitialized();
+  runApp(const MyApp());
+}
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
@@ -23,14 +26,18 @@ class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
 
   void _pickVideo(BuildContext context) async {
-    final result = await FilePicker.platform.pickFiles(type: FileType.video);
-    if (result != null && result.files.single.path != null) {
-      final file = File(result.files.single.path!);
-      if (context.mounted) {
-        Navigator.of(context).push(
-          MaterialPageRoute(builder: (context) => TrimmerView(file)),
-        );
+    try {
+      final result = await FilePicker.platform.pickFiles(type: FileType.video);
+      if (result != null && result.files.single.path != null) {
+        final file = File(result.files.single.path!);
+        if (context.mounted) {
+          Navigator.of(context).push(
+            MaterialPageRoute(builder: (context) => TrimmerView(file)),
+          );
+        }
       }
+    } catch (e) {
+      debugPrint("File picker error: $e");
     }
   }
 
